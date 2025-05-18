@@ -111,16 +111,53 @@ def get_cube_metadata():
         logger.error(f"Error getting cube metadata: {str(e)}")
         return jsonify({"error": str(e)})
 
-# Build dynamic MDX based on parameters
+# Improved MDX query builder to handle multiple dimensions
 def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=None):
     if not dimensions_on_rows and not dimensions_on_cols:
         return None
     
     # Build COLUMNS part
-    if measures and len(measures) > 0:
-        cols_str = "{" + ", ".join([f"[Measures].[{m}]" for m in measures]) + "}"
+    if dimensions_on_cols and len(dimensions_on_cols) > 0:
+        # Multiple dimensions on columns
+        # First create a crossjoin of dimension members
+        dimension_members = []
+        for dim in dimensions_on_cols:
+            if isinstance(dim, dict):
+                dim_name = dim.get('dimension')
+                level = dim.get('level', '')
+                dimension_members.append(f"[{dim_name}].[{level}].MEMBERS")
+        
+        # If we have dimensions on columns, we need to crossjoin with measures
+        if dimension_members:
+            if measures and len(measures) > 0:
+                measures_set = "{" + ", ".join([f"[Measures].[{m}]" for m in measures]) + "}"
+                if len(dimension_members) == 1:
+                    # Single dimension on columns
+                    cols_str = f"NON EMPTY CROSSJOIN({measures_set}, {dimension_members[0]})"
+                else:
+                    # Multiple dimensions on columns - more complex crossjoin
+                    dims_str = "CROSSJOIN(" + ", ".join(dimension_members) + ")"
+                    cols_str = f"NON EMPTY CROSSJOIN({measures_set}, {dims_str})"
+            else:
+                # Default measure if none selected
+                measures_set = "{[Measures].[Total Item Price]}"
+                if len(dimension_members) == 1:
+                    cols_str = f"NON EMPTY CROSSJOIN({measures_set}, {dimension_members[0]})"
+                else:
+                    dims_str = "CROSSJOIN(" + ", ".join(dimension_members) + ")"
+                    cols_str = f"NON EMPTY CROSSJOIN({measures_set}, {dims_str})"
+        else:
+            # No dimensions on columns, just measures
+            if measures and len(measures) > 0:
+                cols_str = "{" + ", ".join([f"[Measures].[{m}]" for m in measures]) + "}"
+            else:
+                cols_str = "{[Measures].[Total Item Price]}"
     else:
-        cols_str = "{[Measures].[Total Item Price]}"
+        # No dimensions on columns, just measures
+        if measures and len(measures) > 0:
+            cols_str = "{" + ", ".join([f"[Measures].[{m}]" for m in measures]) + "}"
+        else:
+            cols_str = "{[Measures].[Total Item Price]}"
     
     # Build ROWS part
     if dimensions_on_rows and len(dimensions_on_rows) > 0:
@@ -169,7 +206,11 @@ def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=No
             else:
                 rows_str = f"NON EMPTY {{[{dimensions_on_rows}].MEMBERS}}"
     else:
-        rows_str = "NON EMPTY {[Dim Item].[Item Description].MEMBERS}"
+        # If no dimensions on rows but we have dimensions on columns, use a simple default
+        if dimensions_on_cols and len(dimensions_on_cols) > 0:
+            rows_str = "{[Measures].MEMBERS}"
+        else:
+            rows_str = "NON EMPTY {[Dim Item].[Item Description].MEMBERS}"
     
     # Build WHERE clause (filters/slicers)
     where_clause = ""

@@ -286,9 +286,11 @@
         let currentLevel = null;
         let drillHistory = [];
         let selectedMeasures = ['Total Item Price'];
-        let activeDimensions = []; // For multi-dimensional analysis
+        let rowDimensions = []; // Dimensions on rows
+        let columnDimensions = []; // Dimensions on columns
         let selectedFilters = {}; // For storing selected filters
         let selectedDimensionInfo = null; // For temporarily storing selected dimension
+        let apiUrl = '${apiUrl}';
         
         $(document).ready(function() {
             // Initial load
@@ -321,8 +323,20 @@
                 <div class="card mb-3">
                     <div class="card-header">Active Dimensions</div>
                     <div class="card-body">
-                        <div id="activeDimensionsContainer" class="d-flex flex-wrap">
-                            <!-- Active dimensions will be displayed here -->
+                        <h6 id="rowDimensionsHeader" style="display: none;">Rows</h6>
+                        <div id="rowDimensionsContainer" class="d-flex flex-wrap mb-3">
+                            <!-- Row dimensions will be displayed here -->
+                        </div>
+                        
+                        <h6 id="columnDimensionsHeader" style="display: none;">Columns</h6>
+                        <div id="columnDimensionsContainer" class="d-flex flex-wrap">
+                            <!-- Column dimensions will be displayed here -->
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-outline-danger" id="clearDimensionsBtn">
+                                Clear All Dimensions
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -330,11 +344,19 @@
             
             // Insert after breadcrumb
             activeDimensionsPanel.insertAfter($('.card.mb-3').first());
+            
+            // Clear all dimensions button
+            $('#clearDimensionsBtn').click(function() {
+                rowDimensions = [];
+                columnDimensions = [];
+                updateActiveDimensionsDisplay();
+                loadInitialData();
+            });
         });
         
         // Load cube metadata (dimensions and measures)
         function loadMetadata() {
-            fetch('http://26.161.151.19:5000/api/metadata')
+            fetch('${apiUrl}/metadata')
                 .then(response => response.json())
                 .then(data => {
                     metadata = data;
@@ -353,7 +375,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('http://26.161.151.19:5000/api/data')
+            fetch('${apiUrl}/data')
                 .then(response => response.json())
                 .then(data => {
                     $('#loadingChart').hide();
@@ -464,7 +486,7 @@
             
             $('.measure-checkbox').change(function() {
                 updateSelectedMeasures();
-                if (activeDimensions.length > 0) {
+                if (rowDimensions.length > 0 || columnDimensions.length > 0) {
                     executeMultiDimensionalQuery();
                 } else {
                     loadInitialData();
@@ -584,7 +606,7 @@
                 $('#errorChart').hide();
                 $('#errorTable').hide();
                 
-                fetch('http://26.161.151.19:5000/api/drill', {
+                fetch('${apiUrl}/drill', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -637,7 +659,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('http://26.161.151.19:5000/api/query', {
+            fetch('${apiUrl}/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -680,7 +702,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('http://26.161.151.19:5000/api/query', {
+            fetch('${apiUrl}/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -719,7 +741,7 @@
         
         // Apply selected filters
         function applyFilters() {
-            if (activeDimensions.length > 0) {
+            if (rowDimensions.length > 0 || columnDimensions.length > 0) {
                 executeMultiDimensionalQuery();
             } else {
                 loadInitialData();
@@ -972,33 +994,107 @@
         
         // Add dimension to multi-dimensional analysis
         function addDimensionToAnalysis(dimension, level) {
-            // Check if dimension already exists in the active dimensions
-            const existingDimIndex = activeDimensions.findIndex(d => d.dimension === dimension);
+            // Show modal to let user choose rows or columns
+            const modalHtml = `
+                <div class="modal fade" id="dimensionPlacementModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Dimension</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Where would you like to place <strong>${dimension}: ${level}</strong>?</p>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="dimensionPlacement" id="placementRows" value="rows" checked>
+                                    <label class="form-check-label" for="placementRows">
+                                        Rows
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="dimensionPlacement" id="placementColumns" value="columns">
+                                    <label class="form-check-label" for="placementColumns">
+                                        Columns
+                                    </label>
+                                </div>
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                                        Cancel
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="confirmPlacementBtn">
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
             
-            if (existingDimIndex >= 0) {
-                // Update existing dimension with new level
-                activeDimensions[existingDimIndex].level = level;
-            } else {
-                // Add new dimension
-                activeDimensions.push({
+            // Remove any existing modal first
+            $('#dimensionPlacementModal').remove();
+            
+            // Add modal to document body
+            $('body').append(modalHtml);
+            
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('dimensionPlacementModal'));
+            modal.show();
+            
+            // Handle add button click
+            $('#confirmPlacementBtn').click(function() {
+                const placement = $('input[name="dimensionPlacement"]:checked').val();
+                
+                const dimensionInfo = {
                     dimension: dimension,
                     level: level
-                });
-            }
-            
-            // Update active dimensions display
-            updateActiveDimensionsDisplay();
-            
-            // Execute multi-dimensional query
-            executeMultiDimensionalQuery();
+                };
+                
+                if (placement === 'rows') {
+                    // Check if dimension already exists in row dimensions
+                    const existingDimIndex = rowDimensions.findIndex(d => d.dimension === dimension);
+                    
+                    if (existingDimIndex >= 0) {
+                        // Update existing dimension with new level
+                        rowDimensions[existingDimIndex].level = level;
+                    } else {
+                        // Add new dimension
+                        rowDimensions.push(dimensionInfo);
+                    }
+                } else {
+                    // Check if dimension already exists in column dimensions
+                    const existingDimIndex = columnDimensions.findIndex(d => d.dimension === dimension);
+                    
+                    if (existingDimIndex >= 0) {
+                        // Update existing dimension with new level
+                        columnDimensions[existingDimIndex].level = level;
+                    } else {
+                        // Add new dimension
+                        columnDimensions.push(dimensionInfo);
+                    }
+                }
+                
+                // Update active dimensions display
+                updateActiveDimensionsDisplay();
+                
+                // Execute multi-dimensional query
+                executeMultiDimensionalQuery();
+                
+                // Hide the modal
+                modal.hide();
+            });
         }
         
         // Update display of active dimensions
         function updateActiveDimensionsDisplay() {
-            const container = $('#activeDimensionsContainer');
-            container.empty();
+            const rowsContainer = $('#rowDimensionsContainer');
+            const columnsContainer = $('#columnDimensionsContainer');
             
-            activeDimensions.forEach((dim, index) => {
+            rowsContainer.empty();
+            columnsContainer.empty();
+            
+            // Display row dimensions
+            rowDimensions.forEach((dim, index) => {
                 const badge = $(`
                     <div class="badge bg-primary me-2 mb-2 p-2">
                         ${dim.dimension}: ${dim.level}
@@ -1009,18 +1105,48 @@
                 
                 badge.find('.btn-close').click(function() {
                     const idx = $(this).data('index');
-                    activeDimensions.splice(idx, 1);
+                    rowDimensions.splice(idx, 1);
                     updateActiveDimensionsDisplay();
                     executeMultiDimensionalQuery();
                 });
                 
-                container.append(badge);
+                rowsContainer.append(badge);
             });
+            
+            // Display column dimensions
+            columnDimensions.forEach((dim, index) => {
+                const badge = $(`
+                    <div class="badge bg-info me-2 mb-2 p-2">
+                        ${dim.dimension}: ${dim.level}
+                        <button type="button" class="btn-close btn-close-white ms-2" 
+                                aria-label="Remove" data-index="${index}"></button>
+                    </div>
+                `);
+                
+                badge.find('.btn-close').click(function() {
+                    const idx = $(this).data('index');
+                    columnDimensions.splice(idx, 1);
+                    updateActiveDimensionsDisplay();
+                    executeMultiDimensionalQuery();
+                });
+                
+                columnsContainer.append(badge);
+            });
+            
+            // Update filter dimensions for each active dimension
+            const allDimensions = [...rowDimensions, ...columnDimensions];
+            allDimensions.forEach(dim => {
+                loadFilterValues(dim.dimension, dim.level);
+            });
+            
+            // Show/hide appropriate section headers
+            $('#rowDimensionsHeader').toggle(rowDimensions.length > 0);
+            $('#columnDimensionsHeader').toggle(columnDimensions.length > 0);
         }
         
         // Execute query with multiple dimensions
         function executeMultiDimensionalQuery() {
-            if (activeDimensions.length === 0) {
+            if (rowDimensions.length === 0 && columnDimensions.length === 0) {
                 // If no active dimensions, load initial data
                 loadInitialData();
                 return;
@@ -1031,14 +1157,10 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            // Determine how to distribute dimensions between rows and columns
-            const rowDimensions = activeDimensions;
-            const columnDimensions = [];
-            
             // Get selected filters
             const filters = getSelectedFilters();
             
-            fetch('http://26.161.151.19:5000/api/query', {
+            fetch('${apiUrl}/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1098,7 +1220,7 @@
         
         // Load filter values for a dimension
         function loadFilterValues(dimension, level) {
-            fetch(`http://26.161.151.19:5000/api/members?dimension=${dimension}&level=${level}`)
+            fetch(`${apiUrl}/members?dimension=${dimension}&level=${level}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
