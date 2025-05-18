@@ -286,6 +286,9 @@
         let currentLevel = null;
         let drillHistory = [];
         let selectedMeasures = ['Total Item Price'];
+        let activeDimensions = []; // For multi-dimensional analysis
+        let selectedFilters = {}; // For storing selected filters
+        let selectedDimensionInfo = null; // For temporarily storing selected dimension
         
         $(document).ready(function() {
             // Initial load
@@ -312,11 +315,26 @@
             $('#exportPdf').click(function() {
                 exportData('pdf');
             });
+            
+            // Add container for active dimensions
+            const activeDimensionsPanel = $(`
+                <div class="card mb-3">
+                    <div class="card-header">Active Dimensions</div>
+                    <div class="card-body">
+                        <div id="activeDimensionsContainer" class="d-flex flex-wrap">
+                            <!-- Active dimensions will be displayed here -->
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Insert after breadcrumb
+            activeDimensionsPanel.insertAfter($('.card.mb-3').first());
         });
         
         // Load cube metadata (dimensions and measures)
         function loadMetadata() {
-            fetch('/api/metadata')
+            fetch('http://26.161.151.19:5000/api/metadata')
                 .then(response => response.json())
                 .then(data => {
                     metadata = data;
@@ -335,7 +353,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('/api/data')
+            fetch('http://26.161.151.19:5000/api/data')
                 .then(response => response.json())
                 .then(data => {
                     $('#loadingChart').hide();
@@ -403,6 +421,26 @@
                     levelsContainer.append(levelItem);
                 });
             });
+            
+            // Add "Add to Analysis" button for multi-dimensional analysis
+            const addAnalysisButton = $(`
+                <button class="btn btn-sm btn-outline-primary mt-3 w-100" id="addDimensionBtn">
+                    <i class="bi bi-plus-circle"></i> Add to Analysis
+                </button>
+            `);
+            accordion.append(addAnalysisButton);
+            
+            // Click handler for "Add to Analysis" button
+            $('#addDimensionBtn').click(function() {
+                const selectedDim = $('.dimension-item.selected-dimension');
+                if (selectedDim.length > 0) {
+                    const dim = selectedDim.data('dimension');
+                    const level = selectedDim.data('level');
+                    addDimensionToAnalysis(dim, level);
+                } else {
+                    alert('Please select a dimension first');
+                }
+            });
         }
         
         // Populate measures
@@ -426,6 +464,11 @@
             
             $('.measure-checkbox').change(function() {
                 updateSelectedMeasures();
+                if (activeDimensions.length > 0) {
+                    executeMultiDimensionalQuery();
+                } else {
+                    loadInitialData();
+                }
             });
         }
         
@@ -450,6 +493,12 @@
             
             currentDimension = dimension;
             currentLevel = level;
+            
+            // Store selected dimension for later use
+            selectedDimensionInfo = {
+                dimension: dimension,
+                level: level
+            };
             
             // Update drill path
             updateDrillPath(dimension, level);
@@ -535,7 +584,7 @@
                 $('#errorChart').hide();
                 $('#errorTable').hide();
                 
-                fetch('/api/drill', {
+                fetch('http://26.161.151.19:5000/api/drill', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -588,7 +637,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('/api/query', {
+            fetch('http://26.161.151.19:5000/api/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -631,7 +680,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('/api/query', {
+            fetch('http://26.161.151.19:5000/api/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -670,8 +719,11 @@
         
         // Apply selected filters
         function applyFilters() {
-            // To be implemented
-            alert('Filters functionality will be implemented based on actual cube structure');
+            if (activeDimensions.length > 0) {
+                executeMultiDimensionalQuery();
+            } else {
+                loadInitialData();
+            }
         }
         
         // Update chart visualization
@@ -707,19 +759,31 @@
             const rowDimension = Object.keys(firstRow).find(key => 
                 key.includes('MEMBER_CAPTION') && !key.includes('Measures'));
             
-            // Fill datasets
-            data.forEach(row => {
+            // Filter out rows with null or 0 measure values
+            const filteredData = data.filter(row => {
+                // Check if any measure has a non-null, non-zero value
+                return selectedMeasures.some(measure => {
+                    const measureKey = Object.keys(row).find(key => 
+                        key.includes(`[Measures].[${measure}]`));
+                    return measureKey && row[measureKey] !== null && row[measureKey] !== 0;
+                });
+            });
+            
+            // Fill datasets with filtered data
+            filteredData.forEach(row => {
                 const label = row[rowDimension] || 'Unknown';
+                if (label === null) return; // Skip null dimension values
+                
                 labels.push(label);
                 
                 selectedMeasures.forEach((measure, index) => {
                     const measureKey = Object.keys(row).find(key => 
                         key.includes(`[Measures].[${measure}]`));
                     
-                    if (measureKey) {
-                        datasets[index].data.push(row[measureKey] || 0);
+                    if (measureKey && row[measureKey] !== null && row[measureKey] !== 0) {
+                        datasets[index].data.push(row[measureKey]);
                     } else {
-                        datasets[index].data.push(0);
+                        datasets[index].data.push(null); // Use null instead of 0 to skip in chart
                     }
                 });
             });
@@ -747,8 +811,14 @@
                                 label: function(context) {
                                     const measure = context.dataset.label;
                                     const value = context.raw;
+                                    // Không hiển thị tooltip cho giá trị null hoặc 0
+                                    if (value === null || value === 0) return null;
                                     return `${measure}: ${value}`;
                                 }
+                            },
+                            filter: function(tooltipItem) {
+                                // Chỉ hiển thị tooltip cho giá trị khác null và khác 0
+                                return tooltipItem.raw !== null && tooltipItem.raw !== 0;
                             }
                         }
                     }
@@ -797,16 +867,30 @@
             
             // Create table rows
             data.forEach(row => {
+                // Skip rows where all measure values are null or 0
+                const hasData = measureColumns.some(column => row[column] !== null && row[column] !== 0);
+                if (!hasData) return;
+                
                 const tableRow = $('<tr>');
                 
                 // Add dimension values
                 dimensionColumns.forEach(column => {
-                    tableRow.append($('<td>').text(row[column] || ''));
+                    // Skip null dimension values
+                    if (row[column] === null) {
+                        tableRow.append($('<td>').text(''));
+                    } else {
+                        tableRow.append($('<td>').text(row[column] || ''));
+                    }
                 });
                 
                 // Add measure values
                 measureColumns.forEach(column => {
-                    tableRow.append($('<td>').text(row[column] || '0'));
+                    // Skip null measure values or display as empty instead of 0
+                    if (row[column] === null || row[column] === 0) {
+                        tableRow.append($('<td>').text(''));
+                    } else {
+                        tableRow.append($('<td>').text(row[column]));
+                    }
                 });
                 
                 tableBody.append(tableRow);
@@ -885,6 +969,211 @@
         // Global functions for breadcrumb navigation
         window.resetDrill = resetDrill;
         window.drillTo = drillTo;
+        
+        // Add dimension to multi-dimensional analysis
+        function addDimensionToAnalysis(dimension, level) {
+            // Check if dimension already exists in the active dimensions
+            const existingDimIndex = activeDimensions.findIndex(d => d.dimension === dimension);
+            
+            if (existingDimIndex >= 0) {
+                // Update existing dimension with new level
+                activeDimensions[existingDimIndex].level = level;
+            } else {
+                // Add new dimension
+                activeDimensions.push({
+                    dimension: dimension,
+                    level: level
+                });
+            }
+            
+            // Update active dimensions display
+            updateActiveDimensionsDisplay();
+            
+            // Execute multi-dimensional query
+            executeMultiDimensionalQuery();
+        }
+        
+        // Update display of active dimensions
+        function updateActiveDimensionsDisplay() {
+            const container = $('#activeDimensionsContainer');
+            container.empty();
+            
+            activeDimensions.forEach((dim, index) => {
+                const badge = $(`
+                    <div class="badge bg-primary me-2 mb-2 p-2">
+                        ${dim.dimension}: ${dim.level}
+                        <button type="button" class="btn-close btn-close-white ms-2" 
+                                aria-label="Remove" data-index="${index}"></button>
+                    </div>
+                `);
+                
+                badge.find('.btn-close').click(function() {
+                    const idx = $(this).data('index');
+                    activeDimensions.splice(idx, 1);
+                    updateActiveDimensionsDisplay();
+                    executeMultiDimensionalQuery();
+                });
+                
+                container.append(badge);
+            });
+        }
+        
+        // Execute query with multiple dimensions
+        function executeMultiDimensionalQuery() {
+            if (activeDimensions.length === 0) {
+                // If no active dimensions, load initial data
+                loadInitialData();
+                return;
+            }
+            
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            // Determine how to distribute dimensions between rows and columns
+            const rowDimensions = activeDimensions;
+            const columnDimensions = [];
+            
+            // Get selected filters
+            const filters = getSelectedFilters();
+            
+            fetch('http://26.161.151.19:5000/api/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rows: rowDimensions,
+                    columns: columnDimensions,
+                    measures: selectedMeasures,
+                    filters: filters
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error executing query: ' + error).show();
+                $('#errorTable').text('Error executing query: ' + error).show();
+            });
+        }
+        
+        // Get selected filters from UI
+        function getSelectedFilters() {
+            const filters = [];
+            
+            // Convert selectedFilters object to array format expected by API
+            Object.keys(selectedFilters).forEach(dimKey => {
+                const [dimension, level] = dimKey.split('|');
+                Object.keys(selectedFilters[dimKey]).forEach(value => {
+                    if (selectedFilters[dimKey][value]) {
+                        filters.push({
+                            dimension: dimension,
+                            level: level,
+                            value: value
+                        });
+                    }
+                });
+            });
+            
+            return filters;
+        }
+        
+        // Load filter values for a dimension
+        function loadFilterValues(dimension, level) {
+            fetch(`http://26.161.151.19:5000/api/members?dimension=${dimension}&level=${level}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading filter values:', data.error);
+                        return;
+                    }
+                    
+                    updateFilterUI(dimension, level, data.members);
+                })
+                .catch(error => {
+                    console.error('Error loading filter values:', error);
+                });
+        }
+        
+        // Update filter UI with values
+        function updateFilterUI(dimension, level, members) {
+            const filterKey = `${dimension}|${level}`;
+            const filterContainer = $('#filtersContainer');
+            
+            // Create filter group if it doesn't exist
+            let filterGroup = $(`#filter_${dimension.replace(/\s+/g, '')}_${level.replace(/\s+/g, '')}`);
+            
+            if (filterGroup.length === 0) {
+                filterGroup = $(`
+                    <div class="filter-group mb-3" id="filter_${dimension.replace(/\s+/g, '')}_${level.replace(/\s+/g, '')}">
+                        <h6>${dimension}: ${level}</h6>
+                        <div class="filter-values">
+                        </div>
+                    </div>
+                `);
+                filterContainer.append(filterGroup);
+            }
+            
+            const valuesContainer = filterGroup.find('.filter-values');
+            valuesContainer.empty();
+            
+            // Initialize filters object if needed
+            if (!selectedFilters[filterKey]) {
+                selectedFilters[filterKey] = {};
+            }
+            
+            // Add filter values
+            members.forEach(member => {
+                // Skip null or empty values
+                if (member === null || member === '') return;
+                
+                // Initialize this filter value if needed
+                if (selectedFilters[filterKey][member] === undefined) {
+                    selectedFilters[filterKey][member] = false;
+                }
+                
+                const checkbox = $(`
+                    <div class="form-check">
+                        <input class="form-check-input filter-checkbox" type="checkbox" 
+                               id="filter_${dimension}_${level}_${member.replace(/\s+/g, '')}" 
+                               data-dimension="${dimension}" data-level="${level}" data-value="${member}"
+                               ${selectedFilters[filterKey][member] ? 'checked' : ''}>
+                        <label class="form-check-label" for="filter_${dimension}_${level}_${member.replace(/\s+/g, '')}">
+                            ${member}
+                        </label>
+                    </div>
+                `);
+                
+                checkbox.find('input').change(function() {
+                    const dim = $(this).data('dimension');
+                    const lvl = $(this).data('level');
+                    const val = $(this).data('value');
+                    const key = `${dim}|${lvl}`;
+                    
+                    selectedFilters[key][val] = $(this).is(':checked');
+                });
+                
+                valuesContainer.append(checkbox);
+            });
+        }
     </script>
 </body>
 
