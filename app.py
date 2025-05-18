@@ -40,7 +40,7 @@ app = Flask(__name__)
 # SSAS connection parameters
 model_name = 'CUBE_STORE_IMPORT'
 database_name = 'MultidimensionalProject2'
-server_name = r'WIN_LAP_TUNGNG\BTL_SSAS'
+server_name = r'26.161.151.19'
 
 # Connection string
 connection_string = f'Provider=MSOLAP;Data Source={server_name};Initial Catalog={database_name};'
@@ -54,8 +54,20 @@ def execute_mdx(mdx_query):
                 columns = [desc.name for desc in cur.description]
                 logger.debug(f"Columns: {columns}")
                 df = pd.DataFrame(rows, columns=columns)
-                # Replace all NaN values with None before converting to dict
-                df = df.replace({np.nan: None})
+                
+                # Better handling of null values
+                # For dimension members (usually strings), keep null for aggregation rows
+                # For measures (usually numeric), replace NaN with 0 for better visualization
+                for col in df.columns:
+                    if '[Measures]' in col:
+                        # Replace NaN in measures with 0 instead of None
+                        df[col] = df[col].fillna(0)
+                    else:
+                        # For dimensions that have None as the first row (often the total)
+                        # We'll label it as "Total" for better clarity
+                        if col.endswith('.[MEMBER_CAPTION]') and df[col].iloc[0] is None:
+                            df[col].iloc[0] = 'Total'
+                
                 result = df.to_dict('records')
                 return result
     except Exception as e:
