@@ -1,6 +1,6 @@
 from flask import Flask, render_template, jsonify
 from sys import path
-path.append(r'C:\Program Files\Microsoft.NET\ADOMD.NET\150')
+path.append(r'C:\Program Files\Microsoft.NET\ADOMD.NET\160')
 from pyadomd import Pyadomd
 import pandas as pd
 import numpy as np
@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
 # SSAS connection parameters
-model_name = 'CUBE_STORE_IMPORT'
-database_name = 'MultidimensionalProject2'
-server_name = r'WIN_LAP_TUNGNG\BTL_SSAS'
+model_name = 'DW'
+database_name = 'MultidimensionalProject1'
+server_name = r'DESKTOP-RKQ2KCM\MSSQL2'
 
 # Connection string
 connection_string = f'Provider=MSOLAP;Data Source={server_name};Initial Catalog={database_name};'
@@ -26,7 +26,7 @@ SELECT
     {[Measures].[Quantity Import]} ON COLUMNS,
     [Dim Item].[Item Description].[Item Description].MEMBERS ON ROWS
 FROM 
-    [CUBE_STORE_IMPORT]
+    [DW]
 """
 
 def get_ssas_data():
