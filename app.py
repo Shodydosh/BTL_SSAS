@@ -188,18 +188,20 @@ def execute_mdx(mdx_query):
 # Get cube metadata (dimensions and measures)
 def get_cube_metadata():
     try:
-        # Updated with correct hierarchies based on user input
+        # Updated with correct hierarchies based on complete schema
         dimensions = {
             "Dim Time": ["Day", "Month", "Quarter", "Year"],  # Bottom-up hierarchy
-            "Dim Store": ["Store ID", "City ID", "State"],    # Geographic hierarchy
-            "Dim Customer": ["Customer ID"],                  # No hierarchy, just ID
-            "Dim Item": ["Item ID"]                           # No hierarchy, just ID
+            "Dim Store": ["Store ID", "Store Name", "City ID"],  # Store hierarchy
+            "Dim City": ["City ID", "City Name", "State"],  # Geographic hierarchy
+            "Dim Customer": ["Customer ID", "Customer Name", "City ID", "Customer Type"],  # Customer hierarchy
+            "Dim Item": ["Item ID", "Item Description", "Price"]  # Item hierarchy
         }
         
         measures = [
-            "Total Item Price",
-            "Quantity Sale",
-            "Quantity Ordered"
+            "Total_Item_Price",    # From Fact_SaleItem
+            "Quantity_Ordered",    # From Fact_SaleItem
+            "Quantity_Sale",       # From Fact_SaleStore
+            "Quantity_Import"      # From Fact_Import
         ]
         
         return jsonify({"dimensions": dimensions, "measures": measures})
@@ -402,7 +404,7 @@ def get_data():
         # Simple default query using the actual cube structure
         mdx_query = """
         SELECT 
-            {[Measures].[Total Item Price]} ON COLUMNS,
+            {[Measures].[Total_Item_Price]} ON COLUMNS,
             NON EMPTY [Dim Item].[Item ID].MEMBERS ON ROWS
         FROM 
             [DW]
@@ -413,13 +415,13 @@ def get_data():
             # Extract and return only the total value
             totals = {}
             if data and len(data) > 0:
-                measure_col = '[Measures].[Total Item Price]'
+                measure_col = '[Measures].[Total_Item_Price]'
                 if measure_col in data[0]:
                     # First row typically contains the total
-                    totals['Total Item Price'] = data[0][measure_col]
+                    totals['Total_Item_Price'] = data[0][measure_col]
                 else:
                     # Calculate total by summing all values
-                    totals['Total Item Price'] = sum(row[measure_col] for row in data if measure_col in row)
+                    totals['Total_Item_Price'] = sum(row[measure_col] for row in data if measure_col in row)
             return jsonify({"totals": totals, "mdx": mdx_query})
         
         return jsonify(data)
@@ -434,7 +436,7 @@ def execute_query():
         
         dimensions_on_rows = request_data.get('rows', [])
         dimensions_on_cols = request_data.get('columns', [])
-        measures = request_data.get('measures', ['Total Item Price'])
+        measures = request_data.get('measures', ['Total_Item_Price'])
         filters = request_data.get('filters', [])
         drill_info = request_data.get('drill_info', None)
         sort_info = request_data.get('sort_info', None)
@@ -503,7 +505,7 @@ def get_dimension_members():
         # Build MDX to get members of a dimension level
         mdx_query = f"""
         SELECT 
-            {{[Measures].[Total Item Price]}} ON COLUMNS,
+            {{[Measures].[Total_Item_Price]}} ON COLUMNS,
             NON EMPTY {{[{dimension}].[{level}].MEMBERS}} ON ROWS
         FROM 
             [DW]
@@ -533,7 +535,7 @@ def drill_operation():
         target_level = request_data.get('targetLevel')
         member_value = request_data.get('memberValue')
         drill_type = request_data.get('type', 'down')  # down, up, through
-        measures = request_data.get('measures', ['Total Item Price'])
+        measures = request_data.get('measures', ['Total_Item_Price'])
         
         if not dimension or not current_level or not target_level:
             return jsonify({"error": "Missing required parameters"})
@@ -567,7 +569,7 @@ def roll_up():
         current_level = request_data.get('currentLevel')
         rollup_to_level = request_data.get('rollupToLevel')
         member_value = request_data.get('memberValue')
-        measures = request_data.get('measures', ['Total Item Price'])
+        measures = request_data.get('measures', ['Total_Item_Price'])
         
         if not dimension or not current_level or not rollup_to_level:
             return jsonify({"error": "Missing required parameters"})
@@ -595,7 +597,7 @@ def pivot():
     try:
         request_data = request.json
         dimensions = request_data.get('dimensions', [])
-        measures = request_data.get('measures', ['Total Item Price'])
+        measures = request_data.get('measures', ['Total_Item_Price'])
         sort_info = request_data.get('sort_info', None)
         top_n = request_data.get('top_n', None)
         
@@ -627,7 +629,7 @@ def slice():
     try:
         request_data = request.json
         dimensions = request_data.get('dimensions', [])
-        measures = request_data.get('measures', ['Total Item Price'])
+        measures = request_data.get('measures', ['Total_Item_Price'])
         slice_dimension = request_data.get('slice_dimension')
         slice_value = request_data.get('slice_value')
         
@@ -660,7 +662,7 @@ def top_n():
         request_data = request.json
         dimension = request_data.get('dimension')
         level = request_data.get('level')
-        measure = request_data.get('measure', 'Total Item Price')
+        measure = request_data.get('measure', 'Total_Item_Price')
         n = request_data.get('n', 10)
         
         if not dimension or not level:
@@ -707,7 +709,7 @@ def show_hide():
         mdx_query = build_mdx_query(
             [{'dimension': dimension, 'level': level}] if type == 'rows' else [],
             [{'dimension': dimension, 'level': level}] if type == 'columns' else [],
-            ['Total Item Price'],
+            ['Total_Item_Price'],
             None,
             None,
             None,
@@ -757,7 +759,7 @@ def drill_through():
         # Build MDX for detailed data
         mdx_query = f"""
         SELECT 
-            {{[Measures].[Total Item Price], [Measures].[Quantity Sale], [Measures].[Quantity Ordered]}} ON COLUMNS,
+            {{[Measures].[Total_Item_Price], [Measures].[Quantity_Sale], [Measures].[Quantity_Ordered]}} ON COLUMNS,
             NON EMPTY {{[Dim Item].[Item ID].MEMBERS}} ON ROWS
         FROM 
             [DW]
@@ -807,7 +809,7 @@ def store_product_sales():
         ]
         
         # Select measures
-        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        measures = request_data.get('measures', ['Quantity_Sale', 'Total_Item_Price'])
         
         # Build and execute MDX query
         mdx_query = build_mdx_query(
@@ -863,11 +865,11 @@ def store_time_sales():
             })
         
         # Select measures
-        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        measures = request_data.get('measures', ['Quantity_Sale', 'Total_Item_Price'])
         
         # Sort by time dimension
         sort_info = {
-            'measure': 'Total Item Price',
+            'measure': 'Total_Item_Price',
             'direction': 'desc'
         }
         
@@ -927,11 +929,11 @@ def product_time_sales():
             })
         
         # Select measures
-        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        measures = request_data.get('measures', ['Quantity_Sale', 'Total_Item_Price'])
         
         # Sort by time dimension
         sort_info = {
-            'measure': request_data.get('sort_measure', 'Total Item Price'),
+            'measure': request_data.get('sort_measure', 'Total_Item_Price'),
             'direction': request_data.get('sort_direction', 'desc')
         }
         
@@ -958,7 +960,7 @@ def multi_dimension_analysis():
         request_data = request.json
         row_dimensions = request_data.get('row_dimensions', [])
         column_dimensions = request_data.get('column_dimensions', [])
-        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        measures = request_data.get('measures', ['Quantity_Sale', 'Total_Item_Price'])
         filters = request_data.get('filters', [])
         
         if not row_dimensions and not column_dimensions:
@@ -1019,7 +1021,7 @@ def time_series_comparison():
             })
         
         # Select measures
-        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        measures = request_data.get('measures', ['Quantity_Sale', 'Total_Item_Price'])
         
         # Build and execute MDX query
         mdx_query = build_mdx_query(
@@ -1092,7 +1094,7 @@ def time_hierarchy_analysis():
             })
         
         # Select measures
-        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        measures = request_data.get('measures', ['Quantity_Sale', 'Total_Item_Price'])
         
         # Set up sort order for time dimension (typically ascending for time)
         sort_info = {
