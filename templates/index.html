@@ -290,7 +290,7 @@
         let columnDimensions = []; // Dimensions on columns
         let selectedFilters = {}; // For storing selected filters
         let selectedDimensionInfo = null; // For temporarily storing selected dimension
-        let apiUrl = '${apiUrl}';
+        let apiUrl = 'http://26.161.151.19:5000/api';
         
         $(document).ready(function() {
             // Initial load
@@ -356,7 +356,7 @@
         
         // Load cube metadata (dimensions and measures)
         function loadMetadata() {
-            fetch('${apiUrl}/metadata')
+            fetch(apiUrl + '/metadata')
                 .then(response => response.json())
                 .then(data => {
                     metadata = data;
@@ -375,7 +375,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('${apiUrl}/data')
+            fetch(apiUrl + '/data')
                 .then(response => response.json())
                 .then(data => {
                     $('#loadingChart').hide();
@@ -606,7 +606,7 @@
                 $('#errorChart').hide();
                 $('#errorTable').hide();
                 
-                fetch('${apiUrl}/drill', {
+                fetch(apiUrl + '/drill', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -659,7 +659,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('${apiUrl}/query', {
+            fetch(apiUrl + '/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -702,7 +702,7 @@
             $('#errorChart').hide();
             $('#errorTable').hide();
             
-            fetch('${apiUrl}/query', {
+            fetch(apiUrl + '/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1160,7 +1160,7 @@
             // Get selected filters
             const filters = getSelectedFilters();
             
-            fetch('${apiUrl}/query', {
+            fetch(apiUrl + '/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1220,7 +1220,7 @@
         
         // Load filter values for a dimension
         function loadFilterValues(dimension, level) {
-            fetch(`${apiUrl}/members?dimension=${dimension}&level=${level}`)
+            fetch(apiUrl + `/members?dimension=${dimension}&level=${level}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
