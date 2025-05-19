@@ -421,7 +421,810 @@
                 updateActiveDimensionsDisplay();
                 loadInitialData();
             });
+            
+            // Add OLAP Analysis Tools panel
+            const olapToolsPanel = $(`
+                <div class="card mb-3">
+                    <div class="card-header">OLAP Analysis Tools</div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <button class="btn btn-outline-primary w-100 mb-2" id="storeProductAnalysisBtn">
+                                    <i class="bi bi-shop"></i> Store-Product Analysis
+                                </button>
+                                <button class="btn btn-outline-primary w-100 mb-2" id="storeTimeAnalysisBtn">
+                                    <i class="bi bi-calendar-check"></i> Store Time Analysis
+                                </button>
+                                <button class="btn btn-outline-primary w-100" id="productTimeAnalysisBtn">
+                                    <i class="bi bi-box-seam"></i> Product Time Analysis
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button class="btn btn-outline-primary w-100 mb-2" id="timeSeriesComparisonBtn">
+                                    <i class="bi bi-graph-up"></i> Time Series Comparison
+                                </button>
+                                <button class="btn btn-outline-primary w-100 mb-2" id="timeHierarchyAnalysisBtn">
+                                    <i class="bi bi-diagram-3"></i> Time Hierarchy Analysis
+                                </button>
+                                <button class="btn btn-outline-primary w-100" id="multiDimensionAnalysisBtn">
+                                    <i class="bi bi-grid-3x3"></i> Multi-Dimension Analysis
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Insert after active dimensions panel
+            olapToolsPanel.insertAfter(activeDimensionsPanel);
+            
+            // OLAP Analysis event listeners
+            $('#storeProductAnalysisBtn').click(function() {
+                showStoreProductAnalysisModal();
+            });
+            
+            $('#storeTimeAnalysisBtn').click(function() {
+                showStoreTimeAnalysisModal();
+            });
+            
+            $('#productTimeAnalysisBtn').click(function() {
+                showProductTimeAnalysisModal();
+            });
+            
+            $('#timeSeriesComparisonBtn').click(function() {
+                showTimeSeriesComparisonModal();
+            });
+            
+            $('#timeHierarchyAnalysisBtn').click(function() {
+                showTimeHierarchyAnalysisModal();
+            });
+            
+            $('#multiDimensionAnalysisBtn').click(function() {
+                showMultiDimensionAnalysisModal();
+            });
+            
+            // Add modals for OLAP analysis
+            addOlapModals();
         });
+        
+        // Add OLAP analysis modals to the page
+        function addOlapModals() {
+            // Store-Product Analysis Modal
+            const storeProductModal = $(`
+                <div class="modal fade" id="storeProductModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Store-Product Analysis</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="storeIdInput" class="form-label">Store ID</label>
+                                    <input type="text" class="form-control" id="storeIdInput" placeholder="Enter Store ID">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="itemIdInput" class="form-label">Item ID</label>
+                                    <input type="text" class="form-control" id="itemIdInput" placeholder="Enter Item ID">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="timeDimensionSelect" class="form-label">Time Dimension</label>
+                                    <select class="form-select" id="timeDimensionSelect">
+                                        <option value="Day">Day</option>
+                                        <option value="Month" selected>Month</option>
+                                        <option value="Quarter">Quarter</option>
+                                        <option value="Year">Year</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Measures</label>
+                                    <div id="spMeasuresContainer">
+                                        <!-- Will be populated dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="runStoreProductAnalysisBtn">Run Analysis</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Store Time Analysis Modal
+            const storeTimeModal = $(`
+                <div class="modal fade" id="storeTimeModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Store Time Analysis</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="stTimeStoreIdInput" class="form-label">Store ID</label>
+                                    <input type="text" class="form-control" id="stTimeStoreIdInput" placeholder="Enter Store ID">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="stTimeTimeLevelSelect" class="form-label">Time Level</label>
+                                    <select class="form-select" id="stTimeTimeLevelSelect">
+                                        <option value="Day">Day</option>
+                                        <option value="Month" selected>Month</option>
+                                        <option value="Quarter">Quarter</option>
+                                        <option value="Year">Year</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="stTimeYearInput" class="form-label">Year (Optional)</label>
+                                    <input type="text" class="form-control" id="stTimeYearInput" placeholder="Enter Year (e.g., 2023)">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Measures</label>
+                                    <div id="stTimeMeasuresContainer">
+                                        <!-- Will be populated dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="runStoreTimeAnalysisBtn">Run Analysis</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Product Time Analysis Modal
+            const productTimeModal = $(`
+                <div class="modal fade" id="productTimeModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Product Time Analysis</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="ptItemIdInput" class="form-label">Item ID</label>
+                                    <input type="text" class="form-control" id="ptItemIdInput" placeholder="Enter Item ID">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="ptTimeLevelSelect" class="form-label">Time Level</label>
+                                    <select class="form-select" id="ptTimeLevelSelect">
+                                        <option value="Day">Day</option>
+                                        <option value="Month" selected>Month</option>
+                                        <option value="Quarter">Quarter</option>
+                                        <option value="Year">Year</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="ptYearInput" class="form-label">Year (Optional)</label>
+                                    <input type="text" class="form-control" id="ptYearInput" placeholder="Enter Year (e.g., 2023)">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Measures</label>
+                                    <div id="ptMeasuresContainer">
+                                        <!-- Will be populated dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="runProductTimeAnalysisBtn">Run Analysis</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Time Series Comparison Modal
+            const timeSeriesModal = $(`
+                <div class="modal fade" id="timeSeriesModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Time Series Comparison</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="tsDimensionSelect" class="form-label">Dimension</label>
+                                    <select class="form-select" id="tsDimensionSelect">
+                                        <option value="Dim Store" selected>Store</option>
+                                        <option value="Dim Item">Item</option>
+                                        <option value="Dim Customer">Customer</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="tsDimensionLevelSelect" class="form-label">Dimension Level</label>
+                                    <select class="form-select" id="tsDimensionLevelSelect">
+                                        <!-- Will be populated based on selected dimension -->
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="tsTimeLevelSelect" class="form-label">Time Level</label>
+                                    <select class="form-select" id="tsTimeLevelSelect">
+                                        <option value="Month" selected>Month</option>
+                                        <option value="Quarter">Quarter</option>
+                                        <option value="Year">Year</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="tsYearFromInput" class="form-label">Year From</label>
+                                    <input type="text" class="form-control" id="tsYearFromInput" placeholder="Enter Starting Year">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="tsYearToInput" class="form-label">Year To</label>
+                                    <input type="text" class="form-control" id="tsYearToInput" placeholder="Enter Ending Year">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Measures</label>
+                                    <div id="tsMeasuresContainer">
+                                        <!-- Will be populated dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="runTimeSeriesBtn">Run Analysis</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Time Hierarchy Analysis Modal
+            const timeHierarchyModal = $(`
+                <div class="modal fade" id="timeHierarchyModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Time Hierarchy Analysis</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="thDimensionSelect" class="form-label">Dimension</label>
+                                    <select class="form-select" id="thDimensionSelect">
+                                        <option value="Dim Store" selected>Store</option>
+                                        <option value="Dim Item">Item</option>
+                                        <option value="Dim Customer">Customer</option>
+                                        <option value="Dim Time">Time</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="thDimensionLevelSelect" class="form-label">Dimension Level</label>
+                                    <select class="form-select" id="thDimensionLevelSelect">
+                                        <!-- Will be populated based on selected dimension -->
+                                    </select>
+                                </div>
+                                <div class="mb-3" id="thDimensionValueDiv">
+                                    <label for="thDimensionValueInput" class="form-label">Dimension Value (Optional)</label>
+                                    <input type="text" class="form-control" id="thDimensionValueInput" placeholder="Enter specific value">
+                                </div>
+                                <div class="mb-3">
+                                    <label for="thTimeLevelSelect" class="form-label">Time Level</label>
+                                    <select class="form-select" id="thTimeLevelSelect">
+                                        <option value="Day">Day</option>
+                                        <option value="Month" selected>Month</option>
+                                        <option value="Quarter">Quarter</option>
+                                        <option value="Year">Year</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="thYearInput" class="form-label">Year</label>
+                                    <input type="text" class="form-control" id="thYearInput" placeholder="Enter Year">
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="thCompareCheckbox">
+                                    <label class="form-check-label" for="thCompareCheckbox">
+                                        Compare with previous period
+                                    </label>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Measures</label>
+                                    <div id="thMeasuresContainer">
+                                        <!-- Will be populated dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="runTimeHierarchyBtn">Run Analysis</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Multi-Dimension Analysis Modal
+            const multiDimensionModal = $(`
+                <div class="modal fade" id="multiDimensionModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Multi-Dimension Analysis</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Row Dimensions</h6>
+                                        <div id="mdRowDimensionsContainer" class="border p-2 mb-3" style="min-height: 100px;">
+                                            <!-- Row dimensions will be added here -->
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="mdAddRowDimensionBtn">
+                                            Add Row Dimension
+                                        </button>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Column Dimensions</h6>
+                                        <div id="mdColDimensionsContainer" class="border p-2 mb-3" style="min-height: 100px;">
+                                            <!-- Column dimensions will be added here -->
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="mdAddColDimensionBtn">
+                                            Add Column Dimension
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <hr>
+                                
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <h6>Filters</h6>
+                                        <div id="mdFiltersContainer" class="border p-2 mb-3" style="min-height: 80px;">
+                                            <!-- Filters will be added here -->
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" id="mdAddFilterBtn">
+                                            Add Filter
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <hr>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Measures</label>
+                                    <div id="mdMeasuresContainer">
+                                        <!-- Will be populated dynamically -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="runMultiDimensionBtn">Run Analysis</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Dimension Selector Modal for Multi-Dimension Analysis
+            const dimensionSelectorModal = $(`
+                <div class="modal fade" id="dimensionSelectorModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-sm">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Select Dimension</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="mdDimensionSelect" class="form-label">Dimension</label>
+                                    <select class="form-select" id="mdDimensionSelect">
+                                        <!-- Dimensions will be populated dynamically -->
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="mdLevelSelect" class="form-label">Level</label>
+                                    <select class="form-select" id="mdLevelSelect">
+                                        <!-- Levels will be populated dynamically -->
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="selectDimensionBtn">Select</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Filter Selector Modal for Multi-Dimension Analysis
+            const filterSelectorModal = $(`
+                <div class="modal fade" id="filterSelectorModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Filter</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label for="mdFilterDimensionSelect" class="form-label">Dimension</label>
+                                    <select class="form-select" id="mdFilterDimensionSelect">
+                                        <!-- Dimensions will be populated dynamically -->
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="mdFilterLevelSelect" class="form-label">Level</label>
+                                    <select class="form-select" id="mdFilterLevelSelect">
+                                        <!-- Levels will be populated dynamically -->
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="mdFilterTypeSelect" class="form-label">Filter Type</label>
+                                    <select class="form-select" id="mdFilterTypeSelect">
+                                        <option value="equals">Equals</option>
+                                        <option value="contains">Contains</option>
+                                        <option value="starts_with">Starts With</option>
+                                        <option value="ends_with">Ends With</option>
+                                        <option value="greater_than">Greater Than</option>
+                                        <option value="less_than">Less Than</option>
+                                        <option value="between">Between</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3" id="mdFilterValueDiv">
+                                    <label for="mdFilterValueInput" class="form-label">Filter Value</label>
+                                    <input type="text" class="form-control" id="mdFilterValueInput" placeholder="Enter value">
+                                </div>
+                                <div class="row" id="mdFilterBetweenDiv" style="display: none;">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="mdFilterMinValueInput" class="form-label">Min Value</label>
+                                            <input type="text" class="form-control" id="mdFilterMinValueInput" placeholder="Min value">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="mdFilterMaxValueInput" class="form-label">Max Value</label>
+                                            <input type="text" class="form-control" id="mdFilterMaxValueInput" placeholder="Max value">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="addFilterBtn">Add Filter</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Append all modals to body
+            $('body').append(storeProductModal);
+            $('body').append(storeTimeModal);
+            $('body').append(productTimeModal);
+            $('body').append(timeSeriesModal);
+            $('body').append(timeHierarchyModal);
+            $('body').append(multiDimensionModal);
+            $('body').append(dimensionSelectorModal);
+            $('body').append(filterSelectorModal);
+            
+            // Add event listeners for modal buttons
+            $('#runStoreProductAnalysisBtn').click(function() {
+                runStoreProductAnalysis();
+            });
+            
+            $('#runStoreTimeAnalysisBtn').click(function() {
+                runStoreTimeAnalysis();
+            });
+            
+            $('#runProductTimeAnalysisBtn').click(function() {
+                runProductTimeAnalysis();
+            });
+            
+            $('#runTimeSeriesBtn').click(function() {
+                runTimeSeriesAnalysis();
+            });
+            
+            $('#runTimeHierarchyBtn').click(function() {
+                runTimeHierarchyAnalysis();
+            });
+            
+            $('#runMultiDimensionBtn').click(function() {
+                runMultiDimensionAnalysis();
+            });
+            
+            // Dimension and filter selector modal event listeners
+            $('#mdAddRowDimensionBtn').click(function() {
+                openDimensionSelector('row');
+            });
+            
+            $('#mdAddColDimensionBtn').click(function() {
+                openDimensionSelector('column');
+            });
+            
+            $('#mdAddFilterBtn').click(function() {
+                openFilterSelector();
+            });
+            
+            $('#selectDimensionBtn').click(function() {
+                addSelectedDimension();
+            });
+            
+            $('#addFilterBtn').click(function() {
+                addSelectedFilter();
+            });
+            
+            // Filter type change event
+            $('#mdFilterTypeSelect').change(function() {
+                const filterType = $(this).val();
+                if (filterType === 'between') {
+                    $('#mdFilterValueDiv').hide();
+                    $('#mdFilterBetweenDiv').show();
+                } else {
+                    $('#mdFilterValueDiv').show();
+                    $('#mdFilterBetweenDiv').hide();
+                }
+            });
+            
+            // Dimension change events for updating levels
+            $('#tsDimensionSelect').change(function() {
+                populateDimensionLevels('tsDimensionSelect', 'tsDimensionLevelSelect');
+            });
+            
+            $('#thDimensionSelect').change(function() {
+                populateDimensionLevels('thDimensionSelect', 'thDimensionLevelSelect');
+                
+                // Hide dimension value if Time dimension is selected
+                const selectedDim = $(this).val();
+                if (selectedDim === 'Dim Time') {
+                    $('#thDimensionValueDiv').hide();
+                } else {
+                    $('#thDimensionValueDiv').show();
+                }
+            });
+            
+            $('#mdDimensionSelect').change(function() {
+                populateDimensionLevels('mdDimensionSelect', 'mdLevelSelect');
+            });
+            
+            $('#mdFilterDimensionSelect').change(function() {
+                populateDimensionLevels('mdFilterDimensionSelect', 'mdFilterLevelSelect');
+            });
+            
+            // Initialize measures in all modals
+            $('#productTimeModal').on('show.bs.modal', function() {
+                populateModalMeasures('ptMeasuresContainer');
+            });
+            
+            $('#timeSeriesModal').on('show.bs.modal', function() {
+                populateModalMeasures('tsMeasuresContainer');
+                populateDimensionLevels('tsDimensionSelect', 'tsDimensionLevelSelect');
+            });
+            
+            $('#timeHierarchyModal').on('show.bs.modal', function() {
+                populateModalMeasures('thMeasuresContainer');
+                populateDimensionLevels('thDimensionSelect', 'thDimensionLevelSelect');
+            });
+            
+            $('#multiDimensionModal').on('show.bs.modal', function() {
+                populateModalMeasures('mdMeasuresContainer');
+            });
+
+            // Add missing initialization for Store-Product modal
+            $('#storeProductModal').on('show.bs.modal', function() {
+                populateModalMeasures('spMeasuresContainer');
+            });
+            
+            // Add missing initialization for Store-Time modal
+            $('#storeTimeModal').on('show.bs.modal', function() {
+                populateModalMeasures('stTimeMeasuresContainer');
+            });
+            
+            $('#dimensionSelectorModal').on('show.bs.modal', function() {
+                populateDimensionSelector();
+            });
+            
+            $('#filterSelectorModal').on('show.bs.modal', function() {
+                populateFilterSelector();
+            });
+        }
+        
+        // Populate measures in modals
+        function populateModalMeasures(containerId) {
+            const container = $(`#${containerId}`);
+            container.empty();
+            
+            if (metadata && metadata.measures) {
+                metadata.measures.forEach(measure => {
+                    const measureCheck = $(`
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="${containerId}_${measure.replace(/\s+/g, '')}" 
+                                   value="${measure}" ${measure === 'Total Item Price' || measure === 'Quantity Sale' ? 'checked' : ''}>
+                            <label class="form-check-label" for="${containerId}_${measure.replace(/\s+/g, '')}">
+                                ${measure}
+                            </label>
+                        </div>
+                    `);
+                    container.append(measureCheck);
+                });
+            }
+        }
+        
+        // Show Store-Product Analysis Modal
+        function showStoreProductAnalysisModal() {
+            $('#storeProductModal').modal('show');
+        }
+        
+        // Show Store Time Analysis Modal
+        function showStoreTimeAnalysisModal() {
+            $('#storeTimeModal').modal('show');
+        }
+        
+        // Show Product Time Analysis Modal
+        function showProductTimeAnalysisModal() {
+            $('#productTimeModal').modal('show');
+        }
+        
+        // Show Time Series Comparison Modal
+        function showTimeSeriesComparisonModal() {
+            $('#timeSeriesModal').modal('show');
+        }
+        
+        // Show Time Hierarchy Analysis Modal
+        function showTimeHierarchyAnalysisModal() {
+            $('#timeHierarchyModal').modal('show');
+        }
+        
+        // Show Multi-Dimension Analysis Modal
+        function showMultiDimensionAnalysisModal() {
+            $('#multiDimensionModal').modal('show');
+        }
+        
+        // Run Store-Product Analysis
+        function runStoreProductAnalysis() {
+            const storeId = $('#storeIdInput').val().trim();
+            const itemId = $('#itemIdInput').val().trim();
+            const timeLevel = $('#timeDimensionSelect').val();
+            
+            if (!storeId || !itemId) {
+                alert('Please enter both Store ID and Item ID');
+                return;
+            }
+            
+            // Get selected measures
+            const measures = [];
+            $('#spMeasuresContainer input:checked').each(function() {
+                measures.push($(this).val());
+            });
+            
+            if (measures.length === 0) {
+                alert('Please select at least one measure');
+                return;
+            }
+            
+            // Close modal
+            $('#storeProductModal').modal('hide');
+            
+            // Show loading
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            // Call API
+            fetch(apiUrl + '/store_product_sales', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    store_id: storeId,
+                    item_id: itemId,
+                    time_dimension: timeLevel,
+                    measures: measures
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+                
+                // Update breadcrumb
+                $('#drillPath').empty();
+                $('#drillPath').append(`<li class="breadcrumb-item"><a href="#" onclick="resetDrill()">Home</a></li>`);
+                $('#drillPath').append(`<li class="breadcrumb-item active">Store ${storeId} - Item ${itemId} Sales by ${timeLevel}</li>`);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error: ' + error).show();
+                $('#errorTable').text('Error: ' + error).show();
+            });
+        }
+        
+        // Run Store Time Analysis
+        function runStoreTimeAnalysis() {
+            const storeId = $('#stTimeStoreIdInput').val().trim();
+            const timeLevel = $('#stTimeTimeLevelSelect').val();
+            const year = $('#stTimeYearInput').val().trim();
+            
+            if (!storeId) {
+                alert('Please enter Store ID');
+                return;
+            }
+            
+            // Get selected measures
+            const measures = [];
+            $('#stTimeMeasuresContainer input:checked').each(function() {
+                measures.push($(this).val());
+            });
+            
+            if (measures.length === 0) {
+                alert('Please select at least one measure');
+                return;
+            }
+            
+            // Close modal
+            $('#storeTimeModal').modal('hide');
+            
+            // Show loading
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            // Call API
+            fetch(apiUrl + '/store_time_sales', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    store_id: storeId,
+                    time_level: timeLevel,
+                    year: year || undefined,
+                    measures: measures
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+                
+                // Update breadcrumb
+                $('#drillPath').empty();
+                $('#drillPath').append(`<li class="breadcrumb-item"><a href="#" onclick="resetDrill()">Home</a></li>`);
+                const yearText = year ? ` (${year})` : '';
+                $('#drillPath').append(`<li class="breadcrumb-item active">Store ${storeId} Sales by ${timeLevel}${yearText}</li>`);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error: ' + error).show();
+                $('#errorTable').text('Error: ' + error).show();
+            });
+        }
         
         // Load cube metadata (dimensions and measures)
         function loadMetadata() {
@@ -1013,7 +1816,82 @@
             const pivotMap = {}; // { "rowKeyStr": { "colKeyStr": { measureFullName: value, ... }, ... }, ... }
             const uniqueRowKeys = new Set();
             const uniqueColKeys = new Set();
+            
+            // First handle the case where we have measure columns with dimension references
+            // For example: [Measures].[Quantity Sale].[Dim Customer].[Customer Id].&[KH001]
+            const measureColMap = {}; // Map to store measure columns by pattern
+            const measureDimPattern = /\[Measures\]\.\[(.*?)\]\.\[(.*?)\]\.\[(.*?)\]\.&\[(.*?)\]/;
+            
+            if (data.length > 0) {
+                const firstRow = data[0];
+                const allColumns = Object.keys(firstRow);
+                
+                // Check if we have measure columns with dimension references
+                const measureWithDimCols = allColumns.filter(col => 
+                    col.match(measureDimPattern) || 
+                    (col.includes('[Measures]') && col.includes('&['))
+                );
+                
+                if (measureWithDimCols.length > 0) {
+                    // We have measure columns with dimension values - extract info
+                    measureWithDimCols.forEach(col => {
+                        const match = col.match(measureDimPattern);
+                        if (match) {
+                            const measure = match[1];
+                            const dimension = match[2];
+                            const level = match[3];
+                            const member = match[4];
+                            
+                            if (!measureColMap[measure]) {
+                                measureColMap[measure] = [];
+                            }
+                            
+                            measureColMap[measure].push({
+                                column: col,
+                                dimension: dimension,
+                                level: level,
+                                member: member
+                            });
+                        }
+                    });
+                    
+                    // Process each row with these complex measure columns
+                    data.forEach(row => {
+                        const rowKeyParts = rowDimConfigs.map(conf => 
+                            String(row[conf.mdxCaptionColumn] === undefined || row[conf.mdxCaptionColumn] === null ? 'N/A' : row[conf.mdxCaptionColumn])
+                        );
+                        const rowKeyStr = rowKeyParts.join('|-|');
+                        uniqueRowKeys.add(rowKeyStr);
+                        
+                        if (!pivotMap[rowKeyStr]) {
+                            pivotMap[rowKeyStr] = {};
+                        }
+                        
+                        // For each measure that has dimension references
+                        Object.keys(measureColMap).forEach(measure => {
+                            measureColMap[measure].forEach(colInfo => {
+                                const colKeyStr = colInfo.member;
+                                uniqueColKeys.add(colKeyStr);
+                                
+                                if (!pivotMap[rowKeyStr][colKeyStr]) {
+                                    pivotMap[rowKeyStr][colKeyStr] = {};
+                                }
+                                
+                                // Use the actual column name from the data
+                                pivotMap[rowKeyStr][colKeyStr][`[Measures].[${measure}]`] = row[colInfo.column];
+                            });
+                        });
+                    });
+                    
+                    return {
+                        pivotMap,
+                        uniqueRowKeyStrings: Array.from(uniqueRowKeys).sort(),
+                        uniqueColKeyStrings: Array.from(uniqueColKeys).sort()
+                    };
+                }
+            }
 
+            // Original processing for standard pivot structure
             data.forEach(row => {
                 const rowKeyParts = rowDimConfigs.map(conf => String(row[conf.mdxCaptionColumn] === undefined || row[conf.mdxCaptionColumn] === null ? 'N/A' : row[conf.mdxCaptionColumn]));
                 const colKeyParts = colDimConfigs.map(conf => String(row[conf.mdxCaptionColumn] === undefined || row[conf.mdxCaptionColumn] === null ? 'N/A' : row[conf.mdxCaptionColumn]));
@@ -1046,7 +1924,44 @@
             const numRowDims = rowDimConfigs.length;
             const numColDims = colDimConfigs.length;
             const numMeasures = measureFullNames.length;
+            
+            // Check if column keys are dimension members (like customer IDs)
+            const areDimensionValues = uniqueColKeyStrings.length > 0 && 
+                uniqueColKeyStrings[0].indexOf('|-|') === -1 && // Not compound keys with separators
+                (uniqueColKeyStrings[0].startsWith('KH') || // Customer IDs
+                 uniqueColKeyStrings[0].match(/^\w+\d+$/)); // Simple alphanumeric IDs like KH001
+            
+            // If we have dimension values as columns, add a header for the dimension
+            if (areDimensionValues) {
+                // Create a header row for the dimension name
+                const dimensionHeaderRow = $('<tr>');
+                // Add empty cells for row dimensions
+                for (let j = 0; j < numRowDims; j++) {
+                    dimensionHeaderRow.append($('<th>').attr('rowspan', 1));
+                }
+                
+                // Add a header cell spanning all column values
+                const dimensionName = "Customer ID"; // Can be dynamically determined based on the data pattern
+                dimensionHeaderRow.append($('<th>').attr('colspan', uniqueColKeyStrings.length).text(dimensionName));
+                tableHead.append(dimensionHeaderRow);
+                
+                // Create a header row for the dimension values
+                const valuesHeaderRow = $('<tr>');
+                // Add headers for row dimensions
+                for (let j = 0; j < numRowDims; j++) {
+                    valuesHeaderRow.append($('<th>').text(rowDimConfigs[j].level));
+                }
+                
+                // Add a cell for each dimension value
+                uniqueColKeyStrings.forEach(member => {
+                    valuesHeaderRow.append($('<th>').text(member));
+                });
+                tableHead.append(valuesHeaderRow);
+                
+                return; // We've built the headers, so exit
+            }
 
+            // Original header rendering code for standard pivot tables
             // Create header rows for column dimension levels
             for (let i = 0; i < numColDims; i++) {
                 const headerRow = $('<tr>');
@@ -1634,6 +2549,581 @@
                 
                 valuesContainer.append(checkbox);
             });
+        }
+        
+        // Run Product Time Analysis
+        function runProductTimeAnalysis() {
+            const itemId = $('#ptItemIdInput').val().trim();
+            const timeLevel = $('#ptTimeLevelSelect').val();
+            const year = $('#ptYearInput').val().trim();
+            
+            if (!itemId) {
+                alert('Please enter Item ID');
+                return;
+            }
+            
+            // Get selected measures
+            const measures = [];
+            $('#ptMeasuresContainer input:checked').each(function() {
+                measures.push($(this).val());
+            });
+            
+            if (measures.length === 0) {
+                alert('Please select at least one measure');
+                return;
+            }
+            
+            // Close modal
+            $('#productTimeModal').modal('hide');
+            
+            // Show loading
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            // Call API
+            fetch(apiUrl + '/product_time_sales', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    item_id: itemId,
+                    time_level: timeLevel,
+                    year: year || undefined,
+                    measures: measures
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+                
+                // Update breadcrumb
+                $('#drillPath').empty();
+                $('#drillPath').append(`<li class="breadcrumb-item"><a href="#" onclick="resetDrill()">Home</a></li>`);
+                const yearText = year ? ` (${year})` : '';
+                $('#drillPath').append(`<li class="breadcrumb-item active">Item ${itemId} Sales by ${timeLevel}${yearText}</li>`);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error: ' + error).show();
+                $('#errorTable').text('Error: ' + error).show();
+            });
+        }
+        
+        // Run Time Series Analysis
+        function runTimeSeriesAnalysis() {
+            const dimension = $('#tsDimensionSelect').val();
+            const dimensionLevel = $('#tsDimensionLevelSelect').val();
+            const timeLevel = $('#tsTimeLevelSelect').val();
+            const yearFrom = $('#tsYearFromInput').val().trim();
+            const yearTo = $('#tsYearToInput').val().trim();
+            
+            if (!dimension || !dimensionLevel) {
+                alert('Please select dimension and level');
+                return;
+            }
+            
+            if (!yearFrom || !yearTo) {
+                alert('Please enter years for comparison');
+                return;
+            }
+            
+            // Get selected measures
+            const measures = [];
+            $('#tsMeasuresContainer input:checked').each(function() {
+                measures.push($(this).val());
+            });
+            
+            if (measures.length === 0) {
+                alert('Please select at least one measure');
+                return;
+            }
+            
+            // Close modal
+            $('#timeSeriesModal').modal('hide');
+            
+            // Show loading
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            // Call API
+            fetch(apiUrl + '/time_series_comparison', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    dimension: dimension,
+                    dimension_level: dimensionLevel,
+                    time_level: timeLevel,
+                    year_from: yearFrom,
+                    year_to: yearTo,
+                    measures: measures
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+                
+                // Update breadcrumb
+                $('#drillPath').empty();
+                $('#drillPath').append(`<li class="breadcrumb-item"><a href="#" onclick="resetDrill()">Home</a></li>`);
+                $('#drillPath').append(`<li class="breadcrumb-item active">${dimension.replace('Dim ', '')} Time Series (${yearFrom}-${yearTo})</li>`);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error: ' + error).show();
+                $('#errorTable').text('Error: ' + error).show();
+            });
+        }
+        
+        // Run Time Hierarchy Analysis
+        function runTimeHierarchyAnalysis() {
+            const dimension = $('#thDimensionSelect').val();
+            const dimensionLevel = $('#thDimensionLevelSelect').val();
+            const dimensionValue = $('#thDimensionValueInput').val().trim();
+            const timeLevel = $('#thTimeLevelSelect').val();
+            const year = $('#thYearInput').val().trim();
+            const compareWithPrevious = $('#thCompareCheckbox').is(':checked');
+            
+            if (!dimension || !dimensionLevel) {
+                alert('Please select dimension and level');
+                return;
+            }
+            
+            if (!year) {
+                alert('Please enter a year for analysis');
+                return;
+            }
+            
+            // Get selected measures
+            const measures = [];
+            $('#thMeasuresContainer input:checked').each(function() {
+                measures.push($(this).val());
+            });
+            
+            if (measures.length === 0) {
+                alert('Please select at least one measure');
+                return;
+            }
+            
+            // Close modal
+            $('#timeHierarchyModal').modal('hide');
+            
+            // Show loading
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            // Call API
+            fetch(apiUrl + '/time_hierarchy_analysis', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    dimension: dimension,
+                    dimension_level: dimensionLevel,
+                    dimension_value: dimensionValue || undefined,
+                    time_level: timeLevel,
+                    year: year,
+                    compare_to_previous: compareWithPrevious,
+                    measures: measures
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Handle data differently if comparing with previous period
+                if (compareWithPrevious && result.current_data && result.previous_data) {
+                    // Create combined data for visualization
+                    const combinedData = createComparisonData(result.current_data, result.previous_data);
+                    currentData = combinedData;
+                    updateChart(combinedData);
+                    updateTable(combinedData);
+                    updateKPIs(result.current_data); // Use current period for KPIs
+                } else {
+                    // Update visualizations with regular data
+                    currentData = result.data || result.current_data;
+                    updateChart(currentData);
+                    updateTable(currentData);
+                    updateKPIs(currentData);
+                }
+                
+                // Update breadcrumb
+                $('#drillPath').empty();
+                $('#drillPath').append(`<li class="breadcrumb-item"><a href="#" onclick="resetDrill()">Home</a></li>`);
+                let title = `${dimension.replace('Dim ', '')} by ${timeLevel} (${year})`;
+                if (dimensionValue) {
+                    title = `${dimension.replace('Dim ', '')} ${dimensionValue} by ${timeLevel} (${year})`;
+                }
+                $('#drillPath').append(`<li class="breadcrumb-item active">${title}</li>`);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error: ' + error).show();
+                $('#errorTable').text('Error: ' + error).show();
+            });
+        }
+        
+        // Run Multi-Dimension Analysis
+        function runMultiDimensionAnalysis() {
+            // Get row dimensions, column dimensions, and filters from the UI
+            const rowDimensions = getMultiDimensionSelections('mdRowDimensionsContainer');
+            const colDimensions = getMultiDimensionSelections('mdColDimensionsContainer');
+            const filters = getMultiDimensionFilters('mdFiltersContainer');
+            
+            if (rowDimensions.length === 0 && colDimensions.length === 0) {
+                alert('Please add at least one dimension to rows or columns');
+                return;
+            }
+            
+            // Get selected measures
+            const measures = [];
+            $('#mdMeasuresContainer input:checked').each(function() {
+                measures.push($(this).val());
+            });
+            
+            if (measures.length === 0) {
+                alert('Please select at least one measure');
+                return;
+            }
+            
+            // Close modal
+            $('#multiDimensionModal').modal('hide');
+            
+            // Show loading
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            // Call API
+            fetch(apiUrl + '/multi_dimension_analysis', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    row_dimensions: rowDimensions,
+                    column_dimensions: colDimensions,
+                    measures: measures,
+                    filters: filters
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+                
+                // Update breadcrumb
+                $('#drillPath').empty();
+                $('#drillPath').append(`<li class="breadcrumb-item"><a href="#" onclick="resetDrill()">Home</a></li>`);
+                $('#drillPath').append(`<li class="breadcrumb-item active">Multi-Dimension Analysis</li>`);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error: ' + error).show();
+                $('#errorTable').text('Error: ' + error).show();
+            });
+        }
+        
+        // Helper functions for multi-dimension analysis
+        let selectedDimensionTarget = null; // 'row' or 'column'
+        
+        // Open dimension selector for multi-dimension analysis
+        function openDimensionSelector(target) {
+            selectedDimensionTarget = target;
+            $('#dimensionSelectorModal').modal('show');
+        }
+        
+        // Open filter selector for multi-dimension analysis
+        function openFilterSelector() {
+            $('#filterSelectorModal').modal('show');
+        }
+        
+        // Populate dimension selector with available dimensions
+        function populateDimensionSelector() {
+            const dimensionSelect = $('#mdDimensionSelect');
+            dimensionSelect.empty();
+            
+            if (metadata && metadata.dimensions) {
+                Object.keys(metadata.dimensions).forEach(dimension => {
+                    dimensionSelect.append(`<option value="${dimension}">${dimension}</option>`);
+                });
+                
+                // Populate levels for the first dimension
+                populateDimensionLevels('mdDimensionSelect', 'mdLevelSelect');
+            }
+        }
+        
+        // Populate filter selector with available dimensions
+        function populateFilterSelector() {
+            const dimensionSelect = $('#mdFilterDimensionSelect');
+            dimensionSelect.empty();
+            
+            if (metadata && metadata.dimensions) {
+                Object.keys(metadata.dimensions).forEach(dimension => {
+                    dimensionSelect.append(`<option value="${dimension}">${dimension}</option>`);
+                });
+                
+                // Populate levels for the first dimension
+                populateDimensionLevels('mdFilterDimensionSelect', 'mdFilterLevelSelect');
+            }
+        }
+        
+        // Populate dimension levels based on selected dimension
+        function populateDimensionLevels(dimensionSelectId, levelSelectId) {
+            const dimensionSelect = $(`#${dimensionSelectId}`);
+            const levelSelect = $(`#${levelSelectId}`);
+            const selectedDimension = dimensionSelect.val();
+            
+            levelSelect.empty();
+            
+            if (metadata && metadata.dimensions && selectedDimension) {
+                const levels = metadata.dimensions[selectedDimension];
+                levels.forEach(level => {
+                    levelSelect.append(`<option value="${level}">${level}</option>`);
+                });
+            }
+        }
+        
+        // Add selected dimension to the analysis
+        function addSelectedDimension() {
+            const dimension = $('#mdDimensionSelect').val();
+            const level = $('#mdLevelSelect').val();
+            
+            if (!dimension || !level) {
+                alert('Please select both dimension and level');
+                return;
+            }
+            
+            const dimensionObj = {
+                dimension: dimension,
+                level: level
+            };
+            
+            // Add to appropriate container
+            const container = selectedDimensionTarget === 'row' ? 
+                $('#mdRowDimensionsContainer') : $('#mdColDimensionsContainer');
+            
+            const dimensionTag = $(`
+                <div class="badge bg-primary p-2 m-1 dimension-tag" 
+                     data-dimension="${dimension}" data-level="${level}">
+                    ${dimension}.${level}
+                    <button type="button" class="btn-close btn-close-white ms-2" 
+                            onclick="removeDimensionTag(this)"></button>
+                </div>
+            `);
+            
+            container.append(dimensionTag);
+            
+            // Close modal
+            $('#dimensionSelectorModal').modal('hide');
+        }
+        
+        // Add selected filter to the analysis
+        function addSelectedFilter() {
+            const dimension = $('#mdFilterDimensionSelect').val();
+            const level = $('#mdFilterLevelSelect').val();
+            const filterType = $('#mdFilterTypeSelect').val();
+            const filterValue = $('#mdFilterValueInput').val().trim();
+            const minValue = $('#mdFilterMinValueInput').val().trim();
+            const maxValue = $('#mdFilterMaxValueInput').val().trim();
+            
+            if (!dimension || !level) {
+                alert('Please select both dimension and level');
+                return;
+            }
+            
+            if (filterType === 'between') {
+                if (!minValue || !maxValue) {
+                    alert('Please enter both min and max values for between filter');
+                    return;
+                }
+            } else if (!filterValue) {
+                alert('Please enter a filter value');
+                return;
+            }
+            
+            // Create filter display text
+            let filterDisplayText = `${dimension}.${level} ${filterType}`;
+            if (filterType === 'between') {
+                filterDisplayText += ` ${minValue} - ${maxValue}`;
+            } else {
+                filterDisplayText += ` "${filterValue}"`;
+            }
+            
+            // Add to filters container
+            const container = $('#mdFiltersContainer');
+            const filterTag = $(`
+                <div class="badge bg-secondary p-2 m-1 filter-tag" 
+                     data-dimension="${dimension}" data-level="${level}" 
+                     data-type="${filterType}" data-value="${filterValue}"
+                     data-min-value="${minValue}" data-max-value="${maxValue}">
+                    ${filterDisplayText}
+                    <button type="button" class="btn-close btn-close-white ms-2" 
+                            onclick="removeFilterTag(this)"></button>
+                </div>
+            `);
+            
+            container.append(filterTag);
+            
+            // Close modal
+            $('#filterSelectorModal').modal('hide');
+        }
+        
+        // Remove dimension tag
+        function removeDimensionTag(element) {
+            $(element).parent().remove();
+        }
+        
+        // Remove filter tag
+        function removeFilterTag(element) {
+            $(element).parent().remove();
+        }
+        
+        // Get multi-dimension selections from container
+        function getMultiDimensionSelections(containerId) {
+            const selections = [];
+            $(`#${containerId} .dimension-tag`).each(function() {
+                selections.push({
+                    dimension: $(this).data('dimension'),
+                    level: $(this).data('level')
+                });
+            });
+            return selections;
+        }
+        
+        // Get multi-dimension filters from container
+        function getMultiDimensionFilters(containerId) {
+            const filters = [];
+            $(`#${containerId} .filter-tag`).each(function() {
+                const filterType = $(this).data('type');
+                
+                // Create filter object based on type
+                const filter = {
+                    dimension: $(this).data('dimension'),
+                    level: $(this).data('level'),
+                    type: filterType
+                };
+                
+                // Add appropriate values based on filter type
+                if (filterType === 'between') {
+                    filter.min_value = $(this).data('min-value');
+                    filter.max_value = $(this).data('max-value');
+                } else {
+                    filter.value = $(this).data('value');
+                }
+                
+                filters.push(filter);
+            });
+            return filters;
+        }
+        
+        // Create comparison data from current and previous periods
+        function createComparisonData(currentData, previousData) {
+            const combinedData = [];
+            
+            // Process current period data
+            for (const current of currentData) {
+                const newRow = { ...current };
+                
+                // Rename measure columns to indicate current period
+                for (const key in newRow) {
+                    if (key.includes('[Measures]')) {
+                        const measureName = key.replace('[Measures].[', '').replace(']', '');
+                        newRow[`Current ${measureName}`] = newRow[key];
+                        delete newRow[key]; // Remove original key
+                    }
+                }
+                
+                combinedData.push(newRow);
+            }
+            
+            // Process previous period data if available
+            if (previousData && previousData.length) {
+                for (let i = 0; i < previousData.length && i < combinedData.length; i++) {
+                    const prev = previousData[i];
+                    const combined = combinedData[i];
+                    
+                    // Add previous period measures
+                    for (const key in prev) {
+                        if (key.includes('[Measures]')) {
+                            const measureName = key.replace('[Measures].[', '').replace(']', '');
+                            combined[`Previous ${measureName}`] = prev[key];
+                            
+                            // Calculate change percentage
+                            const currentValue = combined[`Current ${measureName}`] || 0;
+                            const prevValue = prev[key] || 0;
+                            
+                            if (prevValue !== 0) {
+                                const changePercent = ((currentValue - prevValue) / prevValue) * 100;
+                                combined[`${measureName} Change %`] = Math.round(changePercent * 100) / 100;
+                            } else {
+                                combined[`${measureName} Change %`] = 'N/A';
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return combinedData;
         }
     </script>
 </body>

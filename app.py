@@ -307,7 +307,15 @@ def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=No
             sort_measure = sort_info.get('measure')
             sort_direction = sort_info.get('direction', 'desc')
             if sort_measure:
-                rows_str = f"ORDER({rows_str}, [Measures].[{sort_measure}], {sort_direction.upper()})"
+                # Fix: Change the order of NON EMPTY and ORDER operations
+                # Old problematic code: rows_str = f"ORDER({rows_str}, [Measures].[{sort_measure}], {sort_direction.upper()})"
+                # New approach: Apply NON EMPTY after ORDER
+                if rows_str.startswith("NON EMPTY"):
+                    # Remove the NON EMPTY prefix if it exists
+                    inner_set = rows_str.replace("NON EMPTY ", "")
+                    rows_str = f"NON EMPTY ORDER({inner_set}, [Measures].[{sort_measure}], {sort_direction.upper()})"
+                else:
+                    rows_str = f"ORDER({rows_str}, [Measures].[{sort_measure}], {sort_direction.upper()})"
         
         # Handle Top N
         if top_n:
@@ -923,8 +931,8 @@ def product_time_sales():
         
         # Sort by time dimension
         sort_info = {
-            'measure': 'Total Item Price',
-            'direction': 'desc'
+            'measure': request_data.get('sort_measure', 'Total Item Price'),
+            'direction': request_data.get('sort_direction', 'desc')
         }
         
         # Build and execute MDX query
