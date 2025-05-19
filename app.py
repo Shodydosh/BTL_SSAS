@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 # Try multiple potential ADOMD.NET paths
 adomd_paths = [
-    r'C:\Program Files\Microsoft.NET\ADOMD.NET\150',
-    r'C:\Program Files (x86)\Microsoft.NET\ADOMD.NET\150',
-    r'C:\Program Files\Microsoft Analysis Services\ADOMD\150',
+    r'C:\Program Files\Microsoft.NET\ADOMD.NET\160',
+    r'C:\Program Files (x86)\Microsoft.NET\ADOMD.NET\160',
+    r'C:\Program Files\Microsoft Analysis Services\ADOMD\160',
     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Dependencies')
 ]
 
@@ -40,9 +40,9 @@ app = Flask(__name__)
 CORS(app)
 
 # SSAS connection parameters
-model_name = 'CUBE_STORE_IMPORT'
-database_name = 'MultidimensionalProject2'
-server_name = r'26.161.151.19'
+model_name = 'DW'
+database_name = 'MultidimensionalProject1'
+server_name = r'DESKTOP-RKQ2KCM\MSSQL2'
 
 # Connection string
 connection_string = f'Provider=MSOLAP;Data Source={server_name};Initial Catalog={database_name};'
