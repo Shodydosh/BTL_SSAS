@@ -1,4 +1,3 @@
-
 # SSAS connection parameters
 # model_name = 'DW'
 # database_name = 'MultidimensionalProject1'
@@ -8,7 +7,7 @@ from flask import Flask, render_template, jsonify, request
 import sys
 import os
 import logging
-
+from flask_cors import CORS
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -41,8 +40,9 @@ import pandas as pd
 import numpy as np
 import json
 
-app = Flask(__name__)
 
+app = Flask(__name__)
+CORS(app)
 # SSAS connection parameters
 model_name = 'DW'
 database_name = 'MultidimensionalProject1'
@@ -92,60 +92,58 @@ def get_cube_metadata():
 
 # Build dynamic MDX based on parameters
 def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=None):
-    if not dimensions_on_rows and not dimensions_on_cols:
-        return None
-    
-    # Build COLUMNS part
-    if measures and len(measures) > 0:
-        cols_str = "{" + ", ".join([f"[Measures].[{m}]" for m in measures]) + "}"
-    else:
-        cols_str = "{[Measures].[Total Item Price]}"
-    
-    # Build ROWS part
-    if dimensions_on_rows and len(dimensions_on_rows) > 0:
-        # For nested hierarchies (drill-down)
-        if isinstance(dimensions_on_rows, list) and len(dimensions_on_rows) > 0:
+    try:
+        # Build COLUMNS part
+        if measures and len(measures) > 0:
+            cols_str = "{" + ", ".join([f"[Measures].[{m}]" for m in measures]) + "}"
+        else:
+            cols_str = "{[Measures].[Total Item Price]}"
+
+        # Build ROWS part - Support multiple dimensions
+        if dimensions_on_rows and len(dimensions_on_rows) > 0:
             rows_items = []
             for dim in dimensions_on_rows:
                 if isinstance(dim, dict):
                     dim_name = dim.get('dimension')
-                    level = dim.get('level', '')
-                    rows_items.append(f"[{dim_name}].[{level}].MEMBERS")
-                else:
-                    rows_items.append(f"[{dim}].MEMBERS")
+                    level = dim.get('level')
+                    if dim_name and level:
+                        rows_items.append(f"[{dim_name}].[{level}].MEMBERS")
             
-            rows_str = "{" + " * ".join(rows_items) + "}"
+            if rows_items:
+                rows_str = "{" + " * ".join(rows_items) + "}"
+            else:
+                rows_str = "{[Dim Time].[Year].MEMBERS}"
         else:
-            rows_str = "{" + f"[{dimensions_on_rows}].MEMBERS" + "}"
-    else:
-        rows_str = "{[Dim Item].[Item Description].MEMBERS}"
-    
-    # Build WHERE clause (filters/slicers)
-    where_clause = ""
-    if filters and len(filters) > 0:
-        filter_items = []
-        for f in filters:
-            dim = f.get('dimension')
-            level = f.get('level')
-            value = f.get('value')
-            if dim and level and value:
-                filter_items.append(f"[{dim}].[{level}].&[{value}]")
+            rows_str = "{[Dim Time].[Year].MEMBERS}"
+
+        # Build WHERE clause for filters
+        where_clause = ""
+        if filters and len(filters) > 0:
+            filter_items = []
+            for f in filters:
+                dim = f.get('dimension')
+                level = f.get('level')
+                value = f.get('value')
+                if dim and level and value:
+                    filter_items.append(f"[{dim}].[{level}].&[{value}]")
+            
+            if filter_items:
+                where_clause = " WHERE (" + ", ".join(filter_items) + ")"
+
+        # Final MDX query
+        mdx_query = f"""
+        SELECT 
+            {cols_str} ON COLUMNS,
+            {rows_str} ON ROWS
+        FROM [DW]
+        {where_clause}
+        """
         
-        if filter_items:
-            where_clause = " WHERE (" + ", ".join(filter_items) + ")"
-    
-    # Final MDX query
-    mdx_query = f"""
-    SELECT 
-        {cols_str} ON COLUMNS,
-        {rows_str} ON ROWS
-    FROM 
-        [DW]
-    {where_clause}
-    """
-    
-    logger.debug(f"Generated MDX: {mdx_query}")
-    return mdx_query
+        logger.debug(f"Generated MDX: {mdx_query}")
+        return mdx_query
+    except Exception as e:
+        logger.error(f"Error building MDX query: {str(e)}")
+        return None
 
 @app.route('/')
 def index():
@@ -176,19 +174,21 @@ def get_data():
 def execute_query():
     try:
         request_data = request.json
-        
-        dimensions_on_rows = request_data.get('rows', [])
-        dimensions_on_cols = request_data.get('columns', [])
+        dimensions = request_data.get('dimensions', [])  # Get all selected dimensions
         measures = request_data.get('measures', ['Total Item Price'])
-        filters = request_data.get('filters', [])
         
-        mdx_query = build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters)
+        # Convert dimensions to rows format
+        dimensions_on_rows = []
+        for dim in dimensions:
+            if isinstance(dim, dict) and dim.get('dimension') and dim.get('level'):
+                dimensions_on_rows.append(dim)
         
+        mdx_query = build_mdx_query(dimensions_on_rows, [], measures)
         if not mdx_query:
-            return jsonify({"error": "Invalid query parameters"})
+            return jsonify({"error": "Failed to build MDX query"})
         
-        data = execute_mdx(mdx_query)
-        return jsonify({"data": data, "mdx": mdx_query})
+        result = execute_mdx(mdx_query)
+        return jsonify({"data": result, "mdx": mdx_query})
     except Exception as e:
         logger.error(f"Error in execute_query: {str(e)}")
         return jsonify({"error": str(e)})
@@ -233,4 +233,4 @@ def drill_down():
         return jsonify({"error": str(e)})
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+   app.run(host="0.0.0.0", port=5000) 
