@@ -100,6 +100,75 @@
             height: 350px;
             width: 100%;
         }
+
+        /* Matrix view styles */
+        .matrix-view {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .matrix-header {
+            background-color: #f8f9fa;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        
+        .matrix-cell {
+            border: 1px solid #dee2e6;
+            padding: 8px;
+            text-align: right;
+        }
+        
+        .matrix-cell:hover {
+            background-color: #e9ecef;
+            cursor: pointer;
+        }
+        
+        .matrix-total {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
+        
+        .drill-through-panel {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            width: 400px;
+            height: 100vh;
+            background: white;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            padding: 20px;
+        }
+        
+        .drill-through-panel.active {
+            right: 0;
+        }
+        
+        .drill-through-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .drill-through-content {
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+        }
+        
+        .visual-container {
+            position: relative;
+        }
+        
+        .visual-highlight {
+            position: absolute;
+            background: rgba(255,255,255,0.8);
+            border: 2px solid #0d6efd;
+            pointer-events: none;
+        }
     </style>
 </head>
 
@@ -290,7 +359,7 @@
         let columnDimensions = []; // Dimensions on columns
         let selectedFilters = {}; // For storing selected filters
         let selectedDimensionInfo = null; // For temporarily storing selected dimension
-        let apiUrl = 'http://26.161.151.19:5000/api';
+        let apiUrl = 'http://26.161.151.19/api'; // New relative URL
         
         $(document).ready(function() {
             // Initial load
@@ -777,13 +846,31 @@
             });
             
             // Extract data based on first row's structure
+            // This part needs to be robust to actual column names
             const firstRow = data[0];
-            const rowDimension = Object.keys(firstRow).find(key => 
-                key.includes('MEMBER_CAPTION') && !key.includes('Measures'));
-            
-            // Filter out rows with null or 0 measure values
+            let rowDimensionDisplayColumn = null;
+
+            if (rowDimensions.length > 0) {
+                 // Try to find the primary row dimension's display column
+                const primaryRowDim = rowDimensions[0];
+                rowDimensionDisplayColumn = Object.keys(firstRow).find(key => 
+                    key.startsWith(`[${primaryRowDim.dimension}].[${primaryRowDim.level}]`) && key.endsWith('.[MEMBER_CAPTION]')
+                );
+            }
+            // Fallback if no row dimension or specific column not found
+            if (!rowDimensionDisplayColumn) {
+                 rowDimensionDisplayColumn = Object.keys(firstRow).find(key => 
+                    key.includes('MEMBER_CAPTION') && !key.includes('Measures')
+                );
+            }
+             if (!rowDimensionDisplayColumn && Object.keys(firstRow).length > 0) {
+                // Last resort, pick the first non-measure column
+                rowDimensionDisplayColumn = Object.keys(firstRow).find(key => !key.includes('[Measures]'));
+            }
+
+
+            // Filter out rows with null or 0 measure values for chart (optional, depending on preference)
             const filteredData = data.filter(row => {
-                // Check if any measure has a non-null, non-zero value
                 return selectedMeasures.some(measure => {
                     const measureKey = Object.keys(row).find(key => 
                         key.includes(`[Measures].[${measure}]`));
@@ -793,8 +880,8 @@
             
             // Fill datasets with filtered data
             filteredData.forEach(row => {
-                const label = row[rowDimension] || 'Unknown';
-                if (label === null) return; // Skip null dimension values
+                const label = rowDimensionDisplayColumn ? (row[rowDimensionDisplayColumn] || 'Unknown') : 'DataPoint';
+                if (label === null) return; 
                 
                 labels.push(label);
                 
@@ -802,10 +889,10 @@
                     const measureKey = Object.keys(row).find(key => 
                         key.includes(`[Measures].[${measure}]`));
                     
-                    if (measureKey && row[measureKey] !== null && row[measureKey] !== 0) {
+                    if (measureKey && row[measureKey] !== null) { // Allow 0 in charts
                         datasets[index].data.push(row[measureKey]);
                     } else {
-                        datasets[index].data.push(null); // Use null instead of 0 to skip in chart
+                        datasets[index].data.push(null); 
                     }
                 });
             });
@@ -821,10 +908,14 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     onClick: function(event, elements) {
-                        if (elements.length > 0) {
+                        if (elements.length > 0 && rowDimensionDisplayColumn) {
                             const index = elements[0].index;
-                            const memberValue = labels[index];
-                            drillDown(memberValue);
+                            const memberValue = labels[index]; // This label might need mapping back to a unique key
+                            // Drill down might need more context than just the label if labels are not unique member keys.
+                            // For now, assume label is sufficient or currentDimension/currentLevel are set.
+                            if (currentDimension && currentLevel && memberValue !== 'Unknown' && memberValue !== 'DataPoint') {
+                                drillDown(memberValue);
+                            }
                         }
                     },
                     plugins: {
@@ -833,14 +924,12 @@
                                 label: function(context) {
                                     const measure = context.dataset.label;
                                     const value = context.raw;
-                                    // Không hiển thị tooltip cho giá trị null hoặc 0
-                                    if (value === null || value === 0) return null;
-                                    return `${measure}: ${value}`;
+                                    if (value === null) return null;
+                                    return `${measure}: ${formatCurrency(value)}`; // Use formatCurrency for tooltips
                                 }
                             },
                             filter: function(tooltipItem) {
-                                // Chỉ hiển thị tooltip cho giá trị khác null và khác 0
-                                return tooltipItem.raw !== null && tooltipItem.raw !== 0;
+                                return tooltipItem.raw !== null;
                             }
                         }
                     }
@@ -848,77 +937,327 @@
             });
         }
         
-        // Update table visualization
+        // REVISED Table/Matrix rendering logic
         function updateTable(data) {
-            if (!data || data.length === 0) {
-                $('#tableContainer').hide();
-                return;
-            }
-            
+            const tableContainer = $('#tableContainer');
             const tableHead = $('#tableHead');
             const tableBody = $('#tableBody');
-            
+
             tableHead.empty();
             tableBody.empty();
-            
-            // Create table header
-            const headerRow = $('<tr>');
+
+            if (!data || data.length === 0) {
+                tableContainer.hide();
+                return;
+            }
+            tableContainer.show();
+
             const firstRow = data[0];
-            
-            // Find dimension columns (those with MEMBER_CAPTION)
-            const dimensionColumns = Object.keys(firstRow).filter(key => 
-                key.includes('MEMBER_CAPTION') && !key.includes('Measures'));
-            
-            // Find measure columns
-            const measureColumns = Object.keys(firstRow).filter(key => 
-                key.includes('Measures'));
-            
-            // Add dimension headers
-            dimensionColumns.forEach(column => {
-                const dimName = column.split('.[MEMBER_CAPTION]')[0].split('.').pop();
-                headerRow.append($('<th>').text(dimName));
-            });
-            
-            // Add measure headers
-            measureColumns.forEach(column => {
-                const measureName = column.split('.').pop().replace(/[\[\]]/g, '');
-                headerRow.append($('<th>').text(measureName));
-            });
-            
+            const allMdxColumns = Object.keys(firstRow);
+
+            const actualRowDimConfigs = rowDimensions.map(d => {
+                const mdxCapCol = allMdxColumns.find(key => key.startsWith(`[${d.dimension}].[${d.level}]`) && key.endsWith('.[MEMBER_CAPTION]'));
+                const mdxKeyCol = allMdxColumns.find(key => key.startsWith(`[${d.dimension}].[${d.level}]`) && key.endsWith('.[MEMBER_UNIQUE_NAME]'));
+                return { ...d, mdxCaptionColumn: mdxCapCol || d.level, mdxKeyColumn: mdxKeyCol };
+            }).filter(d => d.mdxCaptionColumn);
+
+
+            const actualColDimConfigs = columnDimensions.map(d => {
+                 const mdxCapCol = allMdxColumns.find(key => key.startsWith(`[${d.dimension}].[${d.level}]`) && key.endsWith('.[MEMBER_CAPTION]'));
+                 const mdxKeyCol = allMdxColumns.find(key => key.startsWith(`[${d.dimension}].[${d.level}]`) && key.endsWith('.[MEMBER_UNIQUE_NAME]'));
+                return { ...d, mdxCaptionColumn: mdxCapCol || d.level, mdxKeyColumn: mdxKeyCol };
+            }).filter(d => d.mdxCaptionColumn);
+
+
+            const actualMeasureFullNames = selectedMeasures.map(m => {
+                const mdxCol = allMdxColumns.find(key => key === `[Measures].[${m}]`);
+                return mdxCol;
+            }).filter(name => name);
+
+            if (actualColDimConfigs.length === 0) { // Simple table (measures as columns)
+                renderSimpleTable(data, actualRowDimConfigs, actualMeasureFullNames);
+            } else { // Pivot table
+                renderPivotTable(data, actualRowDimConfigs, actualColDimConfigs, actualMeasureFullNames);
+            }
+        }
+
+        function renderSimpleTable(data, rowDimConfigs, measureFullNames) {
+            const tableHead = $('#tableHead');
+            const tableBody = $('#tableBody');
+
+            const headerRow = $('<tr>');
+            rowDimConfigs.forEach(dim => headerRow.append($('<th>').text(dim.level)));
+            measureFullNames.forEach(measure => headerRow.append($('<th>').text(measure.replace('[Measures].[', '').replace(']', ''))));
             tableHead.append(headerRow);
-            
-            // Create table rows
+
             data.forEach(row => {
-                // Skip rows where all measure values are null or 0
-                const hasData = measureColumns.some(column => row[column] !== null && row[column] !== 0);
-                if (!hasData) return;
-                
                 const tableRow = $('<tr>');
-                
-                // Add dimension values
-                dimensionColumns.forEach(column => {
-                    // Skip null dimension values
-                    if (row[column] === null) {
-                        tableRow.append($('<td>').text(''));
-                    } else {
-                        tableRow.append($('<td>').text(row[column] || ''));
-                    }
+                rowDimConfigs.forEach(dim => {
+                    tableRow.append($('<td>').text(row[dim.mdxCaptionColumn] || ''));
                 });
-                
-                // Add measure values
-                measureColumns.forEach(column => {
-                    // Skip null measure values or display as empty instead of 0
-                    if (row[column] === null || row[column] === 0) {
-                        tableRow.append($('<td>').text(''));
-                    } else {
-                        tableRow.append($('<td>').text(row[column]));
-                    }
+                measureFullNames.forEach(measure => {
+                    const value = row[measure];
+                    tableRow.append($('<td>').text(value !== null && value !== undefined ? formatValue(value, measure) : ''));
                 });
-                
                 tableBody.append(tableRow);
             });
+        }
+
+        function renderPivotTable(data, rowDimConfigs, colDimConfigs, measureFullNames) {
+            const { pivotMap, uniqueRowKeyStrings, uniqueColKeyStrings } = processPivotData(data, rowDimConfigs, colDimConfigs, measureFullNames);
+            renderPivotHeaders(rowDimConfigs, colDimConfigs, measureFullNames, uniqueColKeyStrings);
+            renderPivotBody(rowDimConfigs, colDimConfigs, measureFullNames, uniqueRowKeyStrings, uniqueColKeyStrings, pivotMap);
+        }
+        
+        function processPivotData(data, rowDimConfigs, colDimConfigs, measureFullNames) {
+            const pivotMap = {}; // { "rowKeyStr": { "colKeyStr": { measureFullName: value, ... }, ... }, ... }
+            const uniqueRowKeys = new Set();
+            const uniqueColKeys = new Set();
+
+            data.forEach(row => {
+                const rowKeyParts = rowDimConfigs.map(conf => String(row[conf.mdxCaptionColumn] === undefined || row[conf.mdxCaptionColumn] === null ? 'N/A' : row[conf.mdxCaptionColumn]));
+                const colKeyParts = colDimConfigs.map(conf => String(row[conf.mdxCaptionColumn] === undefined || row[conf.mdxCaptionColumn] === null ? 'N/A' : row[conf.mdxCaptionColumn]));
+                
+                const rowKeyStr = rowKeyParts.join('|-|'); // Use a less common separator
+                const colKeyStr = colKeyParts.join('|-|');
+
+                uniqueRowKeys.add(rowKeyStr);
+                uniqueColKeys.add(colKeyStr);
+
+                if (!pivotMap[rowKeyStr]) pivotMap[rowKeyStr] = {};
+                if (!pivotMap[rowKeyStr][colKeyStr]) pivotMap[rowKeyStr][colKeyStr] = {};
+
+                measureFullNames.forEach(measureName => {
+                    pivotMap[rowKeyStr][colKeyStr][measureName] = row[measureName];
+                });
+            });
             
-            $('#tableContainer').show();
+            return {
+                pivotMap,
+                uniqueRowKeyStrings: Array.from(uniqueRowKeys).sort(),
+                uniqueColKeyStrings: Array.from(uniqueColKeys).sort()
+            };
+        }
+
+        function renderPivotHeaders(rowDimConfigs, colDimConfigs, measureFullNames, uniqueColKeyStrings) {
+            const tableHead = $('#tableHead');
+            tableHead.empty();
+            
+            const numRowDims = rowDimConfigs.length;
+            const numColDims = colDimConfigs.length;
+            const numMeasures = measureFullNames.length;
+
+            // Create header rows for column dimension levels
+            for (let i = 0; i < numColDims; i++) {
+                const headerRow = $('<tr>');
+                // Blank cells for row dimension headers
+                if (i === 0) { // Only add these once, spanning all col dim header rows
+                    for (let j = 0; j < numRowDims; j++) {
+                        headerRow.append($('<th>').attr('rowspan', numColDims + (numMeasures > 1 ? 1 : 0) ).text(rowDimConfigs[j].level));
+                    }
+                }
+                
+                let currentUniqueColKeyParts = uniqueColKeyStrings.map(k => k.split('|-|')[i]);
+                let uniqueMembersForThisLevel = [...new Set(currentUniqueColKeyParts)];
+                 // This is simplified. True hierarchical headers need more complex colspan logic
+                uniqueMembersForThisLevel.forEach(member => {
+                     let colspan = 1;
+                     if (numMeasures > 1) colspan *= numMeasures;
+                     // Calculate colspan based on lower level unique members count
+                     // This logic is complex for true hierarchy and is simplified here
+                     headerRow.append($('<th>').attr('colspan', colspan).text(member));
+                });
+                tableHead.append(headerRow);
+            }
+
+            // Header row for measures if multiple measures and column dimensions exist
+            if (numMeasures > 1 && numColDims > 0) {
+                const measureHeaderRow = $('<tr>');
+                // No blanks needed here if row dim headers already span
+                uniqueColKeyStrings.forEach(colKeyStr => {
+                    measureFullNames.forEach(measure => {
+                        measureHeaderRow.append($('<th>').text(measure.replace('[Measures].[', '').replace(']', '')));
+                    });
+                });
+                tableHead.append(measureHeaderRow);
+            } else if (numMeasures >=1 && numColDims === 0) { // No col dims, measures are the only headers
+                 const headerRow = $('<tr>');
+                 for (let j = 0; j < numRowDims; j++) {
+                        headerRow.append($('<th>').text(rowDimConfigs[j].level));
+                 }
+                 measureFullNames.forEach(measure => {
+                        headerRow.append($('<th>').text(measure.replace('[Measures].[', '').replace(']', '')));
+                 });
+                 tableHead.append(headerRow);
+
+            } else if (numMeasures === 1 && numColDims > 0) { // Single measure, name can be part of col header logic or implicit
+                 // If single measure, its name can be in a top header or not shown if context is clear
+                 // The current colDim header logic might need adjustment for this.
+                 // For now, let's assume the value itself is shown under the dimension headers.
+            }
+        }
+        
+        function renderPivotBody(rowDimConfigs, colDimConfigs, measureFullNames, uniqueRowKeyStrings, uniqueColKeyStrings, pivotMap) {
+            const tableBody = $('#tableBody');
+            tableBody.empty();
+
+            uniqueRowKeyStrings.forEach(rowKeyStr => {
+                const tableRow = $('<tr>');
+                const rowKeyParts = rowKeyStr.split('|-|');
+                rowKeyParts.forEach(part => {
+                    tableRow.append($('<td>').text(part));
+                });
+
+                uniqueColKeyStrings.forEach(colKeyStr => {
+                    const cellData = pivotMap[rowKeyStr] ? pivotMap[rowKeyStr][colKeyStr] : null;
+                    measureFullNames.forEach(measureName => {
+                        const value = cellData && cellData[measureName] !== undefined ? cellData[measureName] : '';
+                        // Add data attributes for drill-through if needed
+                        const td = $('<td>')
+                            .text(formatValue(value, measureName))
+                            .data('row-key', rowKeyStr)
+                            .data('col-key', colKeyStr)
+                            .data('measure-name', measureName);
+                        // Basic click for drill-down placeholder - needs more robust context
+                        td.click(function() {
+                             // Implement drill functionality based on cell context
+                             // console.log('Cell clicked:', $(this).data());
+                             // Placeholder: if it's a dimension member cell, allow drill
+                             // This requires more complex identification of what was clicked
+                        });
+                        tableRow.append(td);
+                    });
+                     if (measureFullNames.length === 0 && colDimConfigs.length > 0) { // Case for no measures, just dimensional data
+                        tableRow.append($('<td>').text(pivotMap[rowKeyStr] && pivotMap[rowKeyStr][colKeyStr] ? '✓' : ''));
+                    }
+                });
+                tableBody.append(tableRow);
+            });
+        }
+
+        // Simplified formatValue, assuming measures usually contain "Price" or are numeric
+        function formatValue(value, measureName) {
+            if (value === null || value === undefined || value === '') return '';
+            if (typeof value === 'number') {
+                if (measureName && measureName.toLowerCase().includes('price')) {
+                    return formatCurrency(value);
+                }
+                return value.toLocaleString();
+            }
+            return String(value);
+        }
+        
+        // Drill-through functionality - needs review against new pivot structure
+        function showDrillThrough(rowDataKey, colDataKey, measureName) {
+            // This function needs to be adapted based on how row/column keys are structured
+            // and what information is needed for the /api/drill-through endpoint.
+            // The backend /api/drill-through expects 'rowData' and 'colData' as specific member unique names.
+            // The current rowDataKey and colDataKey are 'N/A' or caption strings joined by '|-|'.
+            // This needs to be mapped back to unique member names for each dimension involved.
+            console.warn("Drill-through needs reimplementation based on actual unique member keys.");
+            
+            const panel = $('.drill-through-panel');
+            if (!panel.length) {
+                createDrillThroughPanel();
+            }
+            
+            $('.drill-through-content').html('<div class="spinner-border text-primary" role="status"></div>');
+            panel.addClass('active');
+
+            // Mockup - actual call would need proper parameters
+            // fetch(apiUrl + '/drill-through', { ... })
+            $('.drill-through-content').html('<p>Drill-through data for selected cell. (Implementation Pending)</p>');
+        }
+        
+        function createDrillThroughPanel() {
+            const panel = $(`
+                <div class="drill-through-panel">
+                    <div class="drill-through-header">
+                        <h5>Drill-through Details</h5>
+                        <button type="button" class="btn-close" onclick="$('.drill-through-panel').removeClass('active')"></button>
+                    </div>
+                    <div class="drill-through-content" style="overflow-y: auto; max-height: calc(100vh - 70px);"></div>
+                </div>
+            `);
+            $('body').append(panel);
+             // Event listener for closing the panel
+            panel.find('.btn-close').click(function() {
+                panel.removeClass('active');
+            });
+        }
+        
+        function displayDrillThroughData(drillData) { // Renamed from 'data' to avoid conflict
+            const content = $('.drill-through-content');
+            content.empty();
+            
+            if (drillData.error) {
+                 content.html(`<div class="alert alert-danger">Error: ${drillData.error}</div>`);
+                 return;
+            }
+            if (!drillData.data || drillData.data.length === 0) {
+                content.html(`<p>No detailed data available.</p>`);
+                return;
+            }
+
+            const table = $('<table>').addClass('table table-striped table-sm'); // Added table-sm
+            const thead = $('<thead>');
+            const tbody = $('<tbody>');
+            
+            const headers = Object.keys(drillData.data[0]);
+            const headerRow = $('<tr>');
+            headers.forEach(key => {
+                let displayKey = key;
+                 if (key.endsWith('.[MEMBER_CAPTION]')) {
+                    displayKey = key.substring(0, key.length - '.'.length - 'MEMBER_CAPTION'.length).split('.').pop();
+                } else if (key.startsWith('[Measures].[')) {
+                    displayKey = key.substring('[Measures].['.length, key.length - ']'.length);
+                }
+                headerRow.append($('<th>').text(displayKey));
+            });
+            thead.append(headerRow);
+            
+            drillData.data.forEach(row => {
+                const tr = $('<tr>');
+                headers.forEach(key => {
+                    tr.append($('<td>').text(formatValue(row[key], key)));
+                });
+                tbody.append(tr);
+            });
+            
+            table.append(thead).append(tbody);
+            content.append(table);
+        }
+        
+        // Cross-filtering functionality - needs review
+        function highlightRelatedCells(rowData, colData) {
+            // This also needs to be adapted to the new key structure
+            $('.visual-highlight').remove(); // Clear previous highlights
+            // console.warn("Cross-highlighting needs reimplementation.");
+            /*
+            $('.matrix-cell').each(function() { // Assuming cells will have 'matrix-cell' class
+                const cellRow = $(this).data('row-key');
+                const cellCol = $(this).data('col-key');
+                
+                // Simplified highlighting logic - needs robust matching
+                if (cellRow === rowData || cellCol === colData) {
+                    const rect = this.getBoundingClientRect();
+                    const highlight = $('<div>')
+                        .addClass('visual-highlight')
+                        .css({
+                            left: rect.left + window.scrollX, // account for scroll
+                            top: rect.top + window.scrollY,   // account for scroll
+                            width: rect.width,
+                            height: rect.height,
+                            position: 'absolute', // ensure it's absolute
+                            border: '2px solid #0d6efd',
+                            background: 'rgba(13, 110, 253, 0.2)', // light blueish highlight
+                            pointerEvents: 'none', // allow clicks to pass through
+                            zIndex: 999 // ensure it's on top
+                        });
+                    $('body').append(highlight);
+                }
+            });
+            */
         }
         
         // Update KPI values

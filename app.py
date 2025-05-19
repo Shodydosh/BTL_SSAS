@@ -562,5 +562,54 @@ def show_hide():
         logger.error(f"Error in show_hide: {str(e)}")
         return jsonify({"error": str(e)})
 
+@app.route('/api/drill-through', methods=['POST'])
+def drill_through():
+    try:
+        request_data = request.json
+        row_data = request_data.get('rowData')
+        col_data = request_data.get('colData')
+        
+        if not row_data or not col_data:
+            return jsonify({"error": "Missing row or column data"})
+        
+        # Parse row and column data
+        row_parts = row_data.split('|')
+        col_parts = col_data.split('|')
+        
+        # Get current dimensions from request
+        dimensions_on_rows = request_data.get('rows', [])
+        dimensions_on_cols = request_data.get('columns', [])
+        
+        # Build WHERE clause for detailed data
+        where_items = []
+        
+        # Add row dimension filters
+        for i, dim in enumerate(dimensions_on_rows):
+            if i < len(row_parts):
+                where_items.append(f"[{dim['dimension']}].[{dim['level']}].&[{row_parts[i]}]")
+        
+        # Add column dimension filters
+        for i, dim in enumerate(dimensions_on_cols):
+            if i < len(col_parts):
+                where_items.append(f"[{dim['dimension']}].[{dim['level']}].&[{col_parts[i]}]")
+        
+        where_clause = " WHERE (" + ", ".join(where_items) + ")" if where_items else ""
+        
+        # Build MDX for detailed data
+        mdx_query = f"""
+        SELECT 
+            {{[Measures].[Total Item Price], [Measures].[Quantity Sale], [Measures].[Quantity Ordered]}} ON COLUMNS,
+            NON EMPTY {{[Dim Item].[Item ID].MEMBERS}} ON ROWS
+        FROM 
+            [CUBE_STORE_IMPORT]
+        {where_clause}
+        """
+        
+        data = execute_mdx(mdx_query)
+        return jsonify({"data": data, "mdx": mdx_query})
+    except Exception as e:
+        logger.error(f"Error in drill_through: {str(e)}")
+        return jsonify({"error": str(e)})
+
 if __name__ == '__main__':
-    app.run(port=5501, debug=True) 
+    app.run(host='0.0.0.0', port=5000, debug=True)
