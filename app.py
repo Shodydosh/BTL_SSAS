@@ -4,6 +4,102 @@ import os
 import logging
 from flask_cors import CORS
 
+"""
+OLAP API Documentation
+
+This Flask application provides a backend for OLAP operations on a SSAS cube.
+Below are examples of how to use the API endpoints:
+
+1. Store-Product Sales Analysis:
+   Endpoint: /api/store_product_sales
+   Method: POST
+   Payload: {
+     "store_id": "1",
+     "item_id": "2",
+     "time_dimension": "Month",
+     "measures": ["Quantity Sale", "Total Item Price"]
+   }
+   Description: Get sales data for a specific store and product combination over time.
+
+2. Store Time-based Sales Analysis:
+   Endpoint: /api/store_time_sales
+   Method: POST
+   Payload: {
+     "store_id": "1",
+     "time_level": "Month", // Month, Quarter, or Year
+     "year": "2023", // Optional
+     "measures": ["Quantity Sale", "Total Item Price"]
+   }
+   Description: Get total sales for a store across different time periods.
+
+3. Product Time-based Sales Analysis:
+   Endpoint: /api/product_time_sales
+   Method: POST
+   Payload: {
+     "item_id": "1",
+     "time_level": "Month", // Month, Quarter, or Year
+     "year": "2023", // Optional
+     "measures": ["Quantity Sale", "Total Item Price"]
+   }
+   Description: Get sales data for a specific product across time periods.
+
+4. Multi-dimensional Analysis:
+   Endpoint: /api/multi_dimension_analysis
+   Method: POST
+   Payload: {
+     "row_dimensions": [
+       {"dimension": "Dim Store", "level": "Store ID"}
+     ],
+     "column_dimensions": [
+       {"dimension": "Dim Time", "level": "Month"}
+     ],
+     "measures": ["Quantity Sale", "Total Item Price"],
+     "filters": [
+       {"dimension": "Dim Time", "level": "Year", "value": "2023", "type": "equals"}
+     ]
+   }
+   Description: Perform complex multidimensional analysis with multiple dimensions.
+
+5. Time Series Comparison:
+   Endpoint: /api/time_series_comparison
+   Method: POST
+   Payload: {
+     "dimension": "Dim Store",
+     "dimension_level": "Store ID",
+     "time_level": "Month",
+     "year_from": "2022",
+     "year_to": "2023",
+     "measures": ["Quantity Sale", "Total Item Price"]
+   }
+   Description: Compare sales data across different time periods.
+
+6. Time Hierarchy Analysis:
+   Endpoint: /api/time_hierarchy_analysis
+   Method: POST
+   Payload: {
+     "dimension": "Dim Store", 
+     "dimension_level": "Store ID",
+     "dimension_value": "1", // Optional specific value
+     "time_level": "Month", // Day, Month, Quarter, Year
+     "year": "2023", // Optional specific year
+     "compare_to_previous": true, // Optional - compare with previous period
+     "measures": ["Quantity Sale", "Total Item Price"]
+   }
+   Description: Perform analysis using time hierarchy with automatic aggregation at higher levels,
+   optionally comparing current period with previous period.
+
+Example Usage Scenarios:
+
+1. Number of items sold at a specific store for a specific product:
+   Use /api/store_product_sales with specific store_id and item_id
+
+2. Total items a store sold in a month, quarter, or year:
+   Use /api/store_time_sales with specific store_id and time_level
+
+3. Time-based comparison with automatic hierarchy aggregation:
+   Use /api/time_hierarchy_analysis with appropriate parameters
+"""
+
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -111,9 +207,9 @@ def get_cube_metadata():
         logger.error(f"Error getting cube metadata: {str(e)}")
         return jsonify({"error": str(e)})
 
-# Improved MDX query builder to handle multiple dimensions
+# Improved MDX query builder to handle multiple dimensions and advanced aggregations
 def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=None, drill_info=None, 
-                    sort_info=None, top_n=None, show_hide=None, conditional_format=None):
+                    sort_info=None, top_n=None, show_hide=None, conditional_format=None, aggregation_level=None):
     if not dimensions_on_rows and not dimensions_on_cols:
         return None
     
@@ -140,7 +236,12 @@ def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=No
                     else:
                         dimension_members.append(f"[{dim_name}].[{level}].MEMBERS")
                 else:
-                    dimension_members.append(f"[{dim_name}].[{level}].MEMBERS")
+                    # Support for specific members
+                    specific_member = dim.get('member')
+                    if specific_member:
+                        dimension_members.append(f"[{dim_name}].[{level}].&[{specific_member}]")
+                    else:
+                        dimension_members.append(f"[{dim_name}].[{level}].MEMBERS")
         
         # Handle show/hide
         if show_hide and show_hide.get('type') == 'columns':
@@ -169,8 +270,12 @@ def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=No
                 dim_name = dim.get('dimension')
                 level = dim.get('level', '')
                 
+                # Handle specific members for precise querying
+                specific_member = dim.get('member')
+                if specific_member:
+                    dimension_members.append(f"[{dim_name}].[{level}].&[{specific_member}]")
                 # Handle drill operations
-                if drill_info and drill_info.get('dimension') == dim_name:
+                elif drill_info and drill_info.get('dimension') == dim_name:
                     member = drill_info.get('member')
                     drill_type = drill_info.get('type', 'down')
                     
@@ -236,9 +341,28 @@ def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=No
                     filter_items.append(f"FILTER([{dim}].[{level}].MEMBERS, [{dim}].[{level}].CURRENTMEMBER > {value})")
                 elif filter_type == 'less_than':
                     filter_items.append(f"FILTER([{dim}].[{level}].MEMBERS, [{dim}].[{level}].CURRENTMEMBER < {value})")
+                elif filter_type == 'between':
+                    min_val = f.get('min_value')
+                    max_val = f.get('max_value')
+                    if min_val and max_val:
+                        filter_items.append(f"FILTER([{dim}].[{level}].MEMBERS, [{dim}].[{level}].CURRENTMEMBER >= {min_val} AND [{dim}].[{level}].CURRENTMEMBER <= {max_val})")
         
         if filter_items:
             where_clause = " WHERE (" + ", ".join(filter_items) + ")"
+    
+    # Handle aggregation levels for time-based aggregations
+    if aggregation_level:
+        agg_dim = aggregation_level.get('dimension')
+        agg_level = aggregation_level.get('level')
+        if agg_dim and agg_level:
+            # Add to WHERE clause if not already present
+            agg_where = f"[{agg_dim}].[{agg_level}].MEMBERS"
+            if where_clause:
+                # Add to existing WHERE clause
+                where_clause = where_clause.replace(" WHERE (", f" WHERE ({agg_where}, ")
+            else:
+                # Create new WHERE clause
+                where_clause = f" WHERE ({agg_where})"
     
     # Final MDX query
     mdx_query = f"""
@@ -309,6 +433,32 @@ def execute_query():
         top_n = request_data.get('top_n', None)
         show_hide = request_data.get('show_hide', None)
         conditional_format = request_data.get('conditional_format', None)
+        aggregation_level = request_data.get('aggregation_level', None)
+        
+        # Convert simple dimension strings to proper objects if needed
+        for i, dim in enumerate(dimensions_on_rows):
+            if isinstance(dim, str):
+                parts = dim.split('.')
+                if len(parts) >= 2:
+                    dimensions_on_rows[i] = {
+                        'dimension': parts[0],
+                        'level': parts[1]
+                    }
+                    # Check if there's a specific member
+                    if len(parts) >= 3:
+                        dimensions_on_rows[i]['member'] = parts[2]
+        
+        for i, dim in enumerate(dimensions_on_cols):
+            if isinstance(dim, str):
+                parts = dim.split('.')
+                if len(parts) >= 2:
+                    dimensions_on_cols[i] = {
+                        'dimension': parts[0],
+                        'level': parts[1]
+                    }
+                    # Check if there's a specific member
+                    if len(parts) >= 3:
+                        dimensions_on_cols[i]['member'] = parts[2]
         
         mdx_query = build_mdx_query(
             dimensions_on_rows, 
@@ -319,7 +469,8 @@ def execute_query():
             sort_info,
             top_n,
             show_hide,
-            conditional_format
+            conditional_format,
+            aggregation_level
         )
         
         if not mdx_query:
@@ -609,6 +760,411 @@ def drill_through():
         return jsonify({"data": data, "mdx": mdx_query})
     except Exception as e:
         logger.error(f"Error in drill_through: {str(e)}")
+        return jsonify({"error": str(e)})
+
+@app.route('/api/store_product_sales', methods=['POST'])
+def store_product_sales():
+    """Get sales data for a specific store and product combination"""
+    try:
+        request_data = request.json
+        store_id = request_data.get('store_id')
+        item_id = request_data.get('item_id')
+        time_dimension = request_data.get('time_dimension', 'Month')  # Default to Month level
+        
+        if not store_id or not item_id:
+            return jsonify({"error": "Store ID and Item ID are required"})
+        
+        # Create dimensions for query
+        dimensions_on_rows = [
+            {
+                'dimension': 'Dim Time',
+                'level': time_dimension
+            }
+        ]
+        
+        # Create filters
+        filters = [
+            {
+                'dimension': 'Dim Store',
+                'level': 'Store ID',
+                'value': store_id,
+                'type': 'equals'
+            },
+            {
+                'dimension': 'Dim Item',
+                'level': 'Item ID',
+                'value': item_id,
+                'type': 'equals'
+            }
+        ]
+        
+        # Select measures
+        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        
+        # Build and execute MDX query
+        mdx_query = build_mdx_query(
+            dimensions_on_rows,
+            [],
+            measures,
+            filters
+        )
+        
+        data = execute_mdx(mdx_query)
+        return jsonify({"data": data, "mdx": mdx_query})
+    except Exception as e:
+        logger.error(f"Error in store_product_sales: {str(e)}")
+        return jsonify({"error": str(e)})
+
+@app.route('/api/store_time_sales', methods=['POST'])
+def store_time_sales():
+    """Get total sales for a store across different time periods"""
+    try:
+        request_data = request.json
+        store_id = request_data.get('store_id')
+        time_level = request_data.get('time_level', 'Month')  # Month, Quarter, Year
+        year = request_data.get('year')  # Optional year filter
+        
+        if not store_id:
+            return jsonify({"error": "Store ID is required"})
+        
+        # Create dimensions for query
+        dimensions_on_rows = [
+            {
+                'dimension': 'Dim Time',
+                'level': time_level
+            }
+        ]
+        
+        # Create filters
+        filters = [
+            {
+                'dimension': 'Dim Store',
+                'level': 'Store ID',
+                'value': store_id,
+                'type': 'equals'
+            }
+        ]
+        
+        # Add year filter if provided
+        if year:
+            filters.append({
+                'dimension': 'Dim Time',
+                'level': 'Year',
+                'value': year,
+                'type': 'equals'
+            })
+        
+        # Select measures
+        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        
+        # Sort by time dimension
+        sort_info = {
+            'measure': 'Total Item Price',
+            'direction': 'desc'
+        }
+        
+        # Build and execute MDX query
+        mdx_query = build_mdx_query(
+            dimensions_on_rows,
+            [],
+            measures,
+            filters,
+            None,
+            sort_info
+        )
+        
+        data = execute_mdx(mdx_query)
+        return jsonify({"data": data, "mdx": mdx_query})
+    except Exception as e:
+        logger.error(f"Error in store_time_sales: {str(e)}")
+        return jsonify({"error": str(e)})
+
+@app.route('/api/product_time_sales', methods=['POST'])
+def product_time_sales():
+    """Get sales data for a specific product across time periods"""
+    try:
+        request_data = request.json
+        item_id = request_data.get('item_id')
+        time_level = request_data.get('time_level', 'Month')  # Month, Quarter, Year
+        year = request_data.get('year')  # Optional year filter
+        
+        if not item_id:
+            return jsonify({"error": "Item ID is required"})
+        
+        # Create dimensions for query
+        dimensions_on_rows = [
+            {
+                'dimension': 'Dim Time',
+                'level': time_level
+            }
+        ]
+        
+        # Create filters
+        filters = [
+            {
+                'dimension': 'Dim Item',
+                'level': 'Item ID',
+                'value': item_id,
+                'type': 'equals'
+            }
+        ]
+        
+        # Add year filter if provided
+        if year:
+            filters.append({
+                'dimension': 'Dim Time',
+                'level': 'Year',
+                'value': year,
+                'type': 'equals'
+            })
+        
+        # Select measures
+        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        
+        # Sort by time dimension
+        sort_info = {
+            'measure': 'Total Item Price',
+            'direction': 'desc'
+        }
+        
+        # Build and execute MDX query
+        mdx_query = build_mdx_query(
+            dimensions_on_rows,
+            [],
+            measures,
+            filters,
+            None,
+            sort_info
+        )
+        
+        data = execute_mdx(mdx_query)
+        return jsonify({"data": data, "mdx": mdx_query})
+    except Exception as e:
+        logger.error(f"Error in product_time_sales: {str(e)}")
+        return jsonify({"error": str(e)})
+
+@app.route('/api/multi_dimension_analysis', methods=['POST'])
+def multi_dimension_analysis():
+    """Perform a complex multidimensional analysis with multiple dimensions"""
+    try:
+        request_data = request.json
+        row_dimensions = request_data.get('row_dimensions', [])
+        column_dimensions = request_data.get('column_dimensions', [])
+        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        filters = request_data.get('filters', [])
+        
+        if not row_dimensions and not column_dimensions:
+            return jsonify({"error": "At least one dimension must be provided"})
+        
+        # Build and execute MDX query
+        mdx_query = build_mdx_query(
+            row_dimensions,
+            column_dimensions,
+            measures,
+            filters
+        )
+        
+        data = execute_mdx(mdx_query)
+        return jsonify({"data": data, "mdx": mdx_query})
+    except Exception as e:
+        logger.error(f"Error in multi_dimension_analysis: {str(e)}")
+        return jsonify({"error": str(e)})
+
+@app.route('/api/time_series_comparison', methods=['POST'])
+def time_series_comparison():
+    """Compare sales data across different time periods"""
+    try:
+        request_data = request.json
+        dimension = request_data.get('dimension')  # Store or Item dimension
+        dimension_level = request_data.get('dimension_level')  # Store ID, Item ID, etc.
+        time_level = request_data.get('time_level', 'Month')
+        year_from = request_data.get('year_from')
+        year_to = request_data.get('year_to')
+        
+        if not dimension or not dimension_level:
+            return jsonify({"error": "Dimension and dimension level are required"})
+        
+        # Create dimensions
+        dimensions_on_rows = [
+            {
+                'dimension': dimension,
+                'level': dimension_level
+            }
+        ]
+        
+        dimensions_on_cols = [
+            {
+                'dimension': 'Dim Time',
+                'level': time_level
+            }
+        ]
+        
+        # Create filters for time range
+        filters = []
+        if year_from and year_to:
+            filters.append({
+                'dimension': 'Dim Time',
+                'level': 'Year',
+                'min_value': year_from,
+                'max_value': year_to,
+                'type': 'between'
+            })
+        
+        # Select measures
+        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        
+        # Build and execute MDX query
+        mdx_query = build_mdx_query(
+            dimensions_on_rows,
+            dimensions_on_cols,
+            measures,
+            filters
+        )
+        
+        data = execute_mdx(mdx_query)
+        return jsonify({"data": data, "mdx": mdx_query})
+    except Exception as e:
+        logger.error(f"Error in time_series_comparison: {str(e)}")
+        return jsonify({"error": str(e)})
+
+@app.route('/api/time_hierarchy_analysis', methods=['POST'])
+def time_hierarchy_analysis():
+    """Perform analysis using time hierarchy (day -> month -> quarter -> year)"""
+    try:
+        request_data = request.json
+        dimension = request_data.get('dimension')  # Store, Customer, or Item
+        dimension_level = request_data.get('dimension_level')  # The level of the dimension to analyze
+        dimension_value = request_data.get('dimension_value')  # Optional specific value to filter by
+        time_level = request_data.get('time_level', 'Month')  # Day, Month, Quarter, Year
+        year = request_data.get('year')  # Optional specific year
+        include_current_period = request_data.get('include_current_period', True)  # Include current period data
+        compare_to_previous = request_data.get('compare_to_previous', False)  # Compare with previous period
+        
+        if not dimension or not dimension_level:
+            return jsonify({"error": "Dimension and dimension level are required"})
+        
+        # Create dimensions based on time level
+        dimensions_on_rows = [
+            {
+                'dimension': 'Dim Time',
+                'level': time_level
+            }
+        ]
+        
+        # If comparing with a specific dimension (like Store)
+        if dimension != 'Dim Time':
+            dimensions_on_cols = [
+                {
+                    'dimension': dimension,
+                    'level': dimension_level
+                }
+            ]
+        else:
+            dimensions_on_cols = []
+        
+        # Create filters
+        filters = []
+        
+        # Filter by dimension value if provided
+        if dimension_value and dimension != 'Dim Time':
+            filters.append({
+                'dimension': dimension,
+                'level': dimension_level,
+                'value': dimension_value,
+                'type': 'equals'
+            })
+        
+        # Filter by year if provided
+        if year:
+            filters.append({
+                'dimension': 'Dim Time',
+                'level': 'Year',
+                'value': year,
+                'type': 'equals'
+            })
+        
+        # Select measures
+        measures = request_data.get('measures', ['Quantity Sale', 'Total Item Price'])
+        
+        # Set up sort order for time dimension (typically ascending for time)
+        sort_info = {
+            'measure': measures[0],
+            'direction': 'asc'
+        }
+        
+        # Additional time-based aggregation information
+        aggregation_level = None
+        if time_level != 'Year':  # Only needed for levels below Year
+            parent_level = None
+            if time_level == 'Day':
+                parent_level = 'Month'
+            elif time_level == 'Month':
+                parent_level = 'Quarter'
+            elif time_level == 'Quarter':
+                parent_level = 'Year'
+            
+            if parent_level:
+                aggregation_level = {
+                    'dimension': 'Dim Time',
+                    'level': parent_level
+                }
+        
+        # Build and execute MDX query
+        mdx_query = build_mdx_query(
+            dimensions_on_rows,
+            dimensions_on_cols,
+            measures,
+            filters,
+            None,
+            sort_info,
+            None,
+            None,
+            None,
+            aggregation_level
+        )
+        
+        data = execute_mdx(mdx_query)
+        
+        # If requested to compare with previous period, get that data too
+        if compare_to_previous and year:
+            # Calculate previous year
+            prev_year = str(int(year) - 1)
+            
+            # Update filter for previous year
+            prev_filters = [f for f in filters if f.get('dimension') != 'Dim Time' or f.get('level') != 'Year']
+            prev_filters.append({
+                'dimension': 'Dim Time',
+                'level': 'Year',
+                'value': prev_year,
+                'type': 'equals'
+            })
+            
+            # Build and execute MDX query for previous period
+            prev_mdx_query = build_mdx_query(
+                dimensions_on_rows,
+                dimensions_on_cols,
+                measures,
+                prev_filters,
+                None,
+                sort_info,
+                None,
+                None,
+                None,
+                aggregation_level
+            )
+            
+            prev_data = execute_mdx(prev_mdx_query)
+            
+            return jsonify({
+                "current_data": data, 
+                "previous_data": prev_data, 
+                "current_mdx": mdx_query,
+                "previous_mdx": prev_mdx_query
+            })
+        
+        return jsonify({"data": data, "mdx": mdx_query})
+    except Exception as e:
+        logger.error(f"Error in time_hierarchy_analysis: {str(e)}")
         return jsonify({"error": str(e)})
 
 if __name__ == '__main__':
