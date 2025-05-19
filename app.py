@@ -246,7 +246,7 @@ def build_mdx_query(dimensions_on_rows, dimensions_on_cols, measures, filters=No
         {cols_str} ON COLUMNS,
         {rows_str} ON ROWS
     FROM 
-        [CUBE_STORE_IMPORT]
+        [DW]
     {where_clause}
     """
     
@@ -273,7 +273,7 @@ def get_data():
             {[Measures].[Total Item Price]} ON COLUMNS,
             NON EMPTY [Dim Item].[Item ID].MEMBERS ON ROWS
         FROM 
-            [CUBE_STORE_IMPORT]
+            [DW]
         """
         data = execute_mdx(mdx_query)
         
@@ -347,7 +347,7 @@ def get_dimension_members():
             {{[Measures].[Total Item Price]}} ON COLUMNS,
             NON EMPTY {{[{dimension}].[{level}].MEMBERS}} ON ROWS
         FROM 
-            [CUBE_STORE_IMPORT]
+            [DW]
         """
         
         result = execute_mdx(mdx_query)
@@ -419,7 +419,7 @@ def roll_up():
             {{{", ".join([f"[Measures].[{m}]" for m in measures])}}} ON COLUMNS,
             NON EMPTY {{[{dimension}].[{rollup_to_level}].MEMBERS}} ON ROWS
         FROM 
-            [CUBE_STORE_IMPORT]
+            [DW]
         WHERE
             ([{dimension}].[{current_level}].&[{member_value}])
         """
@@ -601,7 +601,7 @@ def drill_through():
             {{[Measures].[Total Item Price], [Measures].[Quantity Sale], [Measures].[Quantity Ordered]}} ON COLUMNS,
             NON EMPTY {{[Dim Item].[Item ID].MEMBERS}} ON ROWS
         FROM 
-            [CUBE_STORE_IMPORT]
+            [DW]
         {where_clause}
         """
         
