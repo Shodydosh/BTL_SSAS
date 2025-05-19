@@ -4,111 +4,1298 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SSAS Data Viewer</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>E-Commerce Analytics Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .dashboard-container {
             padding: 20px;
         }
 
-        .container {
-            background-color: white;
-            padding: 20px;
+        .card {
             border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            max-width: 800px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            border: none;
         }
 
-        .header {
-            margin-bottom: 30px;
-            text-align: center;
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            padding: 15px 20px;
+        }
+
+        .nav-item .nav-link {
+            color: #495057;
+        }
+
+        .nav-item .nav-link.active {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+
+        .filter-container {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .dimension-item {
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }
+
+        .dimension-item:hover {
+            background-color: #e9ecef;
+        }
+
+        .selected-dimension {
+            background-color: #e9ecef;
+            font-weight: bold;
         }
 
         .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+        }
+
+        #exportBtn {
+            margin-left: 10px;
+        }
+
+        .kpi-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0d6efd;
+        }
+
+        .kpi-card {
             text-align: center;
-            padding: 20px;
+            padding: 15px;
         }
 
-        .error-message {
-            color: #dc3545;
-            text-align: center;
-            padding: 20px;
+        .kpi-title {
+            color: #6c757d;
+            font-size: 14px;
         }
-
-        .table {
-            margin-top: 20px;
-        }
-
-        .table th {
-            background-color: #f8f9fa;
+        
+        .chart-container {
+            position: relative;
+            height: 350px;
+            width: 100%;
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>SSAS Data Viewer</h1>
-            <p class="text-muted">Displaying data from CUBE_STORE_IMPORT</p>
-        </div>
-
-        <div id="loading" class="loading">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
+    <div class="container-fluid dashboard-container">
+        <div class="row mb-4">
+            <div class="col">
+                <h1 class="display-6">E-Commerce Analytics Dashboard</h1>
+                <p class="text-muted">Comprehensive sales analysis platform</p>
             </div>
-            <p>Loading data...</p>
         </div>
 
-        <div id="error" class="error-message" style="display: none;"></div>
+        <div class="row mb-4">
+            <!-- KPI Cards -->
+            <div class="col-md-3">
+                <div class="card kpi-card">
+                    <div class="kpi-title">Total Revenue</div>
+                    <div class="kpi-value" id="kpiSales">-</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card kpi-card">
+                    <div class="kpi-title">Quantity Sold</div>
+                    <div class="kpi-value" id="kpiQuantitySold">-</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card kpi-card">
+                    <div class="kpi-title">Quantity Ordered</div>
+                    <div class="kpi-value" id="kpiQuantityOrdered">-</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card kpi-card">
+                    <div class="kpi-title">Avg Item Price</div>
+                    <div class="kpi-value" id="kpiAvgPrice">-</div>
+                </div>
+            </div>
+        </div>
 
-        <div id="table-container" style="display: none;">
-            <table class="table table-striped table-bordered">
-                <thead>
-                    <tr>
-                        <th>Item Description</th>
-                        <th>Quantity Import</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody">
-                </tbody>
-            </table>
+        <div class="row">
+            <!-- Left sidebar with dimensions and measures -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">Dimensions & Measures</div>
+                    <div class="card-body">
+                        <div class="accordion" id="dimensionsAccordion">
+                            <!-- Dimensions will be loaded here -->
+                        </div>
+                        
+                        <hr>
+                        
+                        <h6>Measures</h6>
+                        <div id="measuresList" class="mb-3">
+                            <!-- Measures will be loaded here -->
+                        </div>
+                        
+                        <hr>
+                        
+                        <h6>Filters</h6>
+                        <div id="filtersContainer">
+                            <!-- Filters will be loaded here -->
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-3">
+                            <button class="btn btn-primary" id="applyFiltersBtn">Apply Filters</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main content area -->
+            <div class="col-md-9">
+                <!-- Drill path / Breadcrumb -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb mb-0" id="drillPath">
+                                <li class="breadcrumb-item active">Home</li>
+                            </ol>
+                        </nav>
+                    </div>
+                </div>
+                
+                <!-- Data visualization tabs -->
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="vizTabs">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#chartTab">Charts</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#tableTab">Table</a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content">
+                            <div class="tab-pane fade show active" id="chartTab">
+                                <div class="row mb-3">
+                                    <div class="col">
+                                        <select class="form-select" id="chartTypeSelect">
+                                            <option value="bar">Bar Chart</option>
+                                            <option value="line">Line Chart</option>
+                                            <option value="pie">Pie Chart</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button class="btn btn-outline-secondary" id="exportBtn">
+                                            <i class="bi bi-download"></i> Export
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div id="loadingChart" class="loading">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                
+                                <div id="errorChart" class="alert alert-danger" style="display: none;"></div>
+                                
+                                <div class="chart-container">
+                                    <canvas id="mainChart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="tab-pane fade" id="tableTab">
+                                <div class="row mb-3">
+                                    <div class="col-auto">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="tableSearch" placeholder="Search...">
+                                            <button class="btn btn-outline-secondary" type="button">
+                                                <i class="bi bi-search"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                Export
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" id="exportCsv">CSV</a></li>
+                                                <li><a class="dropdown-item" href="#" id="exportExcel">Excel</a></li>
+                                                <li><a class="dropdown-item" href="#" id="exportPdf">PDF</a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="loadingTable" class="loading">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                
+                                <div id="errorTable" class="alert alert-danger" style="display: none;"></div>
+                                
+                                <div class="table-responsive" id="tableContainer" style="display: none;">
+                                    <table class="table table-striped table-bordered">
+                                        <thead id="tableHead">
+                                        </thead>
+                                        <tbody id="tableBody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        $(document).ready(function () {
-            fetch('/api/data')
+        // Global variables
+        let metadata = null;
+        let currentData = null;
+        let mainChart = null;
+        let currentDimension = null;
+        let currentLevel = null;
+        let drillHistory = [];
+        let selectedMeasures = ['Total Item Price'];
+        let rowDimensions = []; // Dimensions on rows
+        let columnDimensions = []; // Dimensions on columns
+        let selectedFilters = {}; // For storing selected filters
+        let selectedDimensionInfo = null; // For temporarily storing selected dimension
+        let apiUrl = '${apiUrl}';
+        
+        $(document).ready(function() {
+            // Initial load
+            loadMetadata();
+            loadInitialData();
+            
+            // Event listeners
+            $('#applyFiltersBtn').click(function() {
+                applyFilters();
+            });
+            
+            $('#chartTypeSelect').change(function() {
+                updateChart(currentData);
+            });
+            
+            $('#exportCsv').click(function() {
+                exportData('csv');
+            });
+            
+            $('#exportExcel').click(function() {
+                exportData('excel');
+            });
+            
+            $('#exportPdf').click(function() {
+                exportData('pdf');
+            });
+            
+            // Add container for active dimensions
+            const activeDimensionsPanel = $(`
+                <div class="card mb-3">
+                    <div class="card-header">Active Dimensions</div>
+                    <div class="card-body">
+                        <h6 id="rowDimensionsHeader" style="display: none;">Rows</h6>
+                        <div id="rowDimensionsContainer" class="d-flex flex-wrap mb-3">
+                            <!-- Row dimensions will be displayed here -->
+                        </div>
+                        
+                        <h6 id="columnDimensionsHeader" style="display: none;">Columns</h6>
+                        <div id="columnDimensionsContainer" class="d-flex flex-wrap">
+                            <!-- Column dimensions will be displayed here -->
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-outline-danger" id="clearDimensionsBtn">
+                                Clear All Dimensions
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `);
+            
+            // Insert after breadcrumb
+            activeDimensionsPanel.insertAfter($('.card.mb-3').first());
+            
+            // Clear all dimensions button
+            $('#clearDimensionsBtn').click(function() {
+                rowDimensions = [];
+                columnDimensions = [];
+                updateActiveDimensionsDisplay();
+                loadInitialData();
+            });
+        });
+        
+        // Load cube metadata (dimensions and measures)
+        function loadMetadata() {
+            fetch('${apiUrl}/metadata')
                 .then(response => response.json())
                 .then(data => {
-                    $('#loading').hide();
-
-                    if (data.error) {
-                        $('#error').text('Error: ' + data.error).show();
-                        return;
-                    }
-
-                    if (!data || data.length === 0) {
-                        $('#error').text('No data received from server').show();
-                        return;
-                    }
-
-                    const tableBody = $('#tableBody');
-                    data.forEach(item => {
-                        const row = $('<tr>');
-                        row.append($('<td>').text(item['[Dim Item].[Item Description].[Item Description].[MEMBER_CAPTION]']));
-                        row.append($('<td>').text(item['[Measures].[Quantity Import]'] || '0'));
-                        tableBody.append(row);
-                    });
-
-                    $('#table-container').show();
+                    metadata = data;
+                    populateDimensions(metadata.dimensions);
+                    populateMeasures(metadata.measures);
                 })
                 .catch(error => {
-                    $('#loading').hide();
-                    $('#error').text('Error loading data: ' + error).show();
+                    console.error('Error loading metadata:', error);
                 });
-        });
+        }
+        
+        // Load initial data
+        function loadInitialData() {
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            fetch('${apiUrl}/data')
+                .then(response => response.json())
+                .then(data => {
+                    $('#loadingChart').hide();
+                    $('#loadingTable').hide();
+                    
+                    if (data.error) {
+                        $('#errorChart').text('Error: ' + data.error).show();
+                        $('#errorTable').text('Error: ' + data.error).show();
+                        return;
+                    }
+                    
+                    currentData = data;
+                    updateChart(data);
+                    updateTable(data);
+                    updateKPIs(data);
+                })
+                .catch(error => {
+                    $('#loadingChart').hide();
+                    $('#loadingTable').hide();
+                    $('#errorChart').text('Error loading data: ' + error).show();
+                    $('#errorTable').text('Error loading data: ' + error).show();
+                });
+        }
+        
+        // Populate dimensions
+        function populateDimensions(dimensions) {
+            const accordion = $('#dimensionsAccordion');
+            accordion.empty();
+            
+            Object.keys(dimensions).forEach((dimension, index) => {
+                const levels = dimensions[dimension];
+                
+                const accordionItem = $(`
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading${index}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse${index}" aria-expanded="false" aria-controls="collapse${index}">
+                                ${dimension}
+                            </button>
+                        </h2>
+                        <div id="collapse${index}" class="accordion-collapse collapse" aria-labelledby="heading${index}" 
+                             data-bs-parent="#dimensionsAccordion">
+                            <div class="accordion-body" id="levels${index}">
+                            </div>
+                        </div>
+                    </div>
+                `);
+                
+                accordion.append(accordionItem);
+                
+                const levelsContainer = $(`#levels${index}`);
+                levels.forEach(level => {
+                    const levelItem = $(`
+                        <div class="dimension-item" data-dimension="${dimension}" data-level="${level}">
+                            ${level}
+                        </div>
+                    `);
+                    
+                    levelItem.click(function() {
+                        const dim = $(this).data('dimension');
+                        const level = $(this).data('level');
+                        selectDimension(dim, level);
+                    });
+                    
+                    levelsContainer.append(levelItem);
+                });
+            });
+            
+            // Add "Add to Analysis" button for multi-dimensional analysis
+            const addAnalysisButton = $(`
+                <button class="btn btn-sm btn-outline-primary mt-3 w-100" id="addDimensionBtn">
+                    <i class="bi bi-plus-circle"></i> Add to Analysis
+                </button>
+            `);
+            accordion.append(addAnalysisButton);
+            
+            // Click handler for "Add to Analysis" button
+            $('#addDimensionBtn').click(function() {
+                const selectedDim = $('.dimension-item.selected-dimension');
+                if (selectedDim.length > 0) {
+                    const dim = selectedDim.data('dimension');
+                    const level = selectedDim.data('level');
+                    addDimensionToAnalysis(dim, level);
+                } else {
+                    alert('Please select a dimension first');
+                }
+            });
+        }
+        
+        // Populate measures
+        function populateMeasures(measures) {
+            const measuresList = $('#measuresList');
+            measuresList.empty();
+            
+            measures.forEach(measure => {
+                const measureCheckbox = $(`
+                    <div class="form-check">
+                        <input class="form-check-input measure-checkbox" type="checkbox" id="measure${measure.replace(/\s+/g, '')}" 
+                               value="${measure}" ${measure === 'Total Item Price' ? 'checked' : ''}>
+                        <label class="form-check-label" for="measure${measure.replace(/\s+/g, '')}">
+                            ${measure}
+                        </label>
+                    </div>
+                `);
+                
+                measuresList.append(measureCheckbox);
+            });
+            
+            $('.measure-checkbox').change(function() {
+                updateSelectedMeasures();
+                if (rowDimensions.length > 0 || columnDimensions.length > 0) {
+                    executeMultiDimensionalQuery();
+                } else {
+                    loadInitialData();
+                }
+            });
+        }
+        
+        // Update selected measures
+        function updateSelectedMeasures() {
+            selectedMeasures = [];
+            $('.measure-checkbox:checked').each(function() {
+                selectedMeasures.push($(this).val());
+            });
+            
+            if (selectedMeasures.length === 0) {
+                // Ensure at least one measure is selected
+                selectedMeasures = ['Total Item Price'];
+                $('#measureTotalItemPrice').prop('checked', true);
+            }
+        }
+        
+        // Select dimension for analysis
+        function selectDimension(dimension, level) {
+            $('.dimension-item').removeClass('selected-dimension');
+            $(`.dimension-item[data-dimension="${dimension}"][data-level="${level}"]`).addClass('selected-dimension');
+            
+            currentDimension = dimension;
+            currentLevel = level;
+            
+            // Store selected dimension for later use
+            selectedDimensionInfo = {
+                dimension: dimension,
+                level: level
+            };
+            
+            // Update drill path
+            updateDrillPath(dimension, level);
+            
+            // Execute query with selected dimension
+            executeQuery(dimension, level);
+        }
+        
+        // Update drill path breadcrumb
+        function updateDrillPath(dimension, level, memberValue = null) {
+            const drillPath = $('#drillPath');
+            
+            // Add to history
+            if (memberValue) {
+                drillHistory.push({
+                    dimension: dimension,
+                    level: level,
+                    value: memberValue
+                });
+            } else {
+                drillHistory = [{
+                    dimension: dimension,
+                    level: level
+                }];
+            }
+            
+            // Rebuild breadcrumb
+            drillPath.empty();
+            drillPath.append(`<li class="breadcrumb-item"><a href="#" onclick="resetDrill()">Home</a></li>`);
+            
+            drillHistory.forEach((item, index) => {
+                const isActive = index === drillHistory.length - 1;
+                const itemText = item.value ? `${item.level}: ${item.value}` : item.level;
+                
+                if (isActive) {
+                    drillPath.append(`<li class="breadcrumb-item active">${itemText}</li>`);
+                } else {
+                    drillPath.append(`<li class="breadcrumb-item"><a href="#" onclick="drillTo(${index})">${itemText}</a></li>`);
+                }
+            });
+        }
+        
+        // Reset drill path
+        function resetDrill() {
+            drillHistory = [];
+            currentDimension = null;
+            currentLevel = null;
+            loadInitialData();
+        }
+        
+        // Drill to specific level in history
+        function drillTo(index) {
+            const historyItem = drillHistory[index];
+            drillHistory = drillHistory.slice(0, index + 1);
+            
+            currentDimension = historyItem.dimension;
+            currentLevel = historyItem.level;
+            
+            // Execute query based on history item
+            const filters = historyItem.value ? [{ 
+                dimension: historyItem.dimension, 
+                level: historyItem.level, 
+                value: historyItem.value 
+            }] : [];
+            
+            executeQueryWithFilters(historyItem.dimension, historyItem.level, filters);
+        }
+        
+        // Drill down to next level
+        function drillDown(memberValue) {
+            if (!currentDimension || !currentLevel) return;
+            
+            // Get next level in hierarchy
+            const dimensionLevels = metadata.dimensions[currentDimension];
+            const currentIndex = dimensionLevels.indexOf(currentLevel);
+            
+            if (currentIndex < dimensionLevels.length - 1) {
+                const nextLevel = dimensionLevels[currentIndex + 1];
+                
+                // Call API for drill-down
+                $('#loadingChart').show();
+                $('#loadingTable').show();
+                $('#errorChart').hide();
+                $('#errorTable').hide();
+                
+                fetch('${apiUrl}/drill', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        dimension: currentDimension,
+                        currentLevel: currentLevel,
+                        drillToLevel: nextLevel,
+                        memberValue: memberValue,
+                        measures: selectedMeasures
+                    })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    $('#loadingChart').hide();
+                    $('#loadingTable').hide();
+                    
+                    if (result.error) {
+                        $('#errorChart').text('Error: ' + result.error).show();
+                        $('#errorTable').text('Error: ' + result.error).show();
+                        return;
+                    }
+                    
+                    // Update current dimension and level
+                    currentDimension = currentDimension;
+                    currentLevel = nextLevel;
+                    
+                    // Update drill path
+                    updateDrillPath(currentDimension, currentLevel, memberValue);
+                    
+                    // Update visualizations
+                    currentData = result.data;
+                    updateChart(result.data);
+                    updateTable(result.data);
+                    updateKPIs(result.data);
+                })
+                .catch(error => {
+                    $('#loadingChart').hide();
+                    $('#loadingTable').hide();
+                    $('#errorChart').text('Error during drill-down: ' + error).show();
+                    $('#errorTable').text('Error during drill-down: ' + error).show();
+                });
+            }
+        }
+        
+        // Execute query with dimension and level
+        function executeQuery(dimension, level) {
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            fetch('${apiUrl}/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rows: [{ dimension: dimension, level: level }],
+                    columns: [],
+                    measures: selectedMeasures
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error executing query: ' + error).show();
+                $('#errorTable').text('Error executing query: ' + error).show();
+            });
+        }
+        
+        // Execute query with filters
+        function executeQueryWithFilters(dimension, level, filters) {
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            fetch('${apiUrl}/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rows: [{ dimension: dimension, level: level }],
+                    columns: [],
+                    measures: selectedMeasures,
+                    filters: filters
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error executing query: ' + error).show();
+                $('#errorTable').text('Error executing query: ' + error).show();
+            });
+        }
+        
+        // Apply selected filters
+        function applyFilters() {
+            if (rowDimensions.length > 0 || columnDimensions.length > 0) {
+                executeMultiDimensionalQuery();
+            } else {
+                loadInitialData();
+            }
+        }
+        
+        // Update chart visualization
+        function updateChart(data) {
+            if (!data || data.length === 0) return;
+            
+            const chartType = $('#chartTypeSelect').val();
+            const canvas = document.getElementById('mainChart');
+            const ctx = canvas.getContext('2d');
+            
+            // Destroy existing chart if any
+            if (mainChart) {
+                mainChart.destroy();
+            }
+            
+            // Extract labels and data
+            const labels = [];
+            const datasets = [];
+            
+            // Setup datasets for each measure
+            selectedMeasures.forEach(measure => {
+                datasets.push({
+                    label: measure,
+                    data: [],
+                    backgroundColor: getRandomColor(0.7),
+                    borderColor: getRandomColor(1),
+                    borderWidth: 1
+                });
+            });
+            
+            // Extract data based on first row's structure
+            const firstRow = data[0];
+            const rowDimension = Object.keys(firstRow).find(key => 
+                key.includes('MEMBER_CAPTION') && !key.includes('Measures'));
+            
+            // Filter out rows with null or 0 measure values
+            const filteredData = data.filter(row => {
+                // Check if any measure has a non-null, non-zero value
+                return selectedMeasures.some(measure => {
+                    const measureKey = Object.keys(row).find(key => 
+                        key.includes(`[Measures].[${measure}]`));
+                    return measureKey && row[measureKey] !== null && row[measureKey] !== 0;
+                });
+            });
+            
+            // Fill datasets with filtered data
+            filteredData.forEach(row => {
+                const label = row[rowDimension] || 'Unknown';
+                if (label === null) return; // Skip null dimension values
+                
+                labels.push(label);
+                
+                selectedMeasures.forEach((measure, index) => {
+                    const measureKey = Object.keys(row).find(key => 
+                        key.includes(`[Measures].[${measure}]`));
+                    
+                    if (measureKey && row[measureKey] !== null && row[measureKey] !== 0) {
+                        datasets[index].data.push(row[measureKey]);
+                    } else {
+                        datasets[index].data.push(null); // Use null instead of 0 to skip in chart
+                    }
+                });
+            });
+            
+            // Create chart
+            mainChart = new Chart(ctx, {
+                type: chartType,
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: function(event, elements) {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const memberValue = labels[index];
+                            drillDown(memberValue);
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const measure = context.dataset.label;
+                                    const value = context.raw;
+                                    // Không hiển thị tooltip cho giá trị null hoặc 0
+                                    if (value === null || value === 0) return null;
+                                    return `${measure}: ${value}`;
+                                }
+                            },
+                            filter: function(tooltipItem) {
+                                // Chỉ hiển thị tooltip cho giá trị khác null và khác 0
+                                return tooltipItem.raw !== null && tooltipItem.raw !== 0;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update table visualization
+        function updateTable(data) {
+            if (!data || data.length === 0) {
+                $('#tableContainer').hide();
+                return;
+            }
+            
+            const tableHead = $('#tableHead');
+            const tableBody = $('#tableBody');
+            
+            tableHead.empty();
+            tableBody.empty();
+            
+            // Create table header
+            const headerRow = $('<tr>');
+            const firstRow = data[0];
+            
+            // Find dimension columns (those with MEMBER_CAPTION)
+            const dimensionColumns = Object.keys(firstRow).filter(key => 
+                key.includes('MEMBER_CAPTION') && !key.includes('Measures'));
+            
+            // Find measure columns
+            const measureColumns = Object.keys(firstRow).filter(key => 
+                key.includes('Measures'));
+            
+            // Add dimension headers
+            dimensionColumns.forEach(column => {
+                const dimName = column.split('.[MEMBER_CAPTION]')[0].split('.').pop();
+                headerRow.append($('<th>').text(dimName));
+            });
+            
+            // Add measure headers
+            measureColumns.forEach(column => {
+                const measureName = column.split('.').pop().replace(/[\[\]]/g, '');
+                headerRow.append($('<th>').text(measureName));
+            });
+            
+            tableHead.append(headerRow);
+            
+            // Create table rows
+            data.forEach(row => {
+                // Skip rows where all measure values are null or 0
+                const hasData = measureColumns.some(column => row[column] !== null && row[column] !== 0);
+                if (!hasData) return;
+                
+                const tableRow = $('<tr>');
+                
+                // Add dimension values
+                dimensionColumns.forEach(column => {
+                    // Skip null dimension values
+                    if (row[column] === null) {
+                        tableRow.append($('<td>').text(''));
+                    } else {
+                        tableRow.append($('<td>').text(row[column] || ''));
+                    }
+                });
+                
+                // Add measure values
+                measureColumns.forEach(column => {
+                    // Skip null measure values or display as empty instead of 0
+                    if (row[column] === null || row[column] === 0) {
+                        tableRow.append($('<td>').text(''));
+                    } else {
+                        tableRow.append($('<td>').text(row[column]));
+                    }
+                });
+                
+                tableBody.append(tableRow);
+            });
+            
+            $('#tableContainer').show();
+        }
+        
+        // Update KPI values
+        function updateKPIs(data) {
+            if (!data || data.length === 0) return;
+            
+            // These are calculations based on actual cube structure
+            let totalSales = 0;
+            let quantitySold = 0;
+            let quantityOrdered = 0;
+            
+            data.forEach(row => {
+                // Sum up sales values
+                const salesKey = Object.keys(row).find(key => key.includes('[Measures].[Total Item Price]'));
+                if (salesKey) {
+                    totalSales += Number(row[salesKey] || 0);
+                }
+                
+                // Sum quantity sold
+                const quantitySoldKey = Object.keys(row).find(key => key.includes('[Measures].[Quantity Sale]'));
+                if (quantitySoldKey) {
+                    quantitySold += Number(row[quantitySoldKey] || 0);
+                }
+                
+                // Sum quantity ordered
+                const quantityOrderedKey = Object.keys(row).find(key => key.includes('[Measures].[Quantity Ordered]'));
+                if (quantityOrderedKey) {
+                    quantityOrdered += Number(row[quantityOrderedKey] || 0);
+                }
+            });
+            
+            // Update KPI displays
+            $('#kpiSales').text(formatCurrency(totalSales));
+            $('#kpiQuantitySold').text(quantitySold.toLocaleString());
+            $('#kpiQuantityOrdered').text(quantityOrdered.toLocaleString());
+            $('#kpiAvgPrice').text(formatCurrency(quantitySold > 0 ? totalSales / quantitySold : 0));
+        }
+        
+        // Export data in different formats
+        function exportData(format) {
+            alert(`Export to ${format} will be implemented based on actual data structure`);
+            // Implementation would depend on specific export library
+        }
+        
+        // Utility: Generate random color
+        function getRandomColor(opacity) {
+            const colors = [
+                `rgba(54, 162, 235, ${opacity})`,
+                `rgba(255, 99, 132, ${opacity})`,
+                `rgba(255, 206, 86, ${opacity})`,
+                `rgba(75, 192, 192, ${opacity})`,
+                `rgba(153, 102, 255, ${opacity})`,
+                `rgba(255, 159, 64, ${opacity})`,
+                `rgba(199, 199, 199, ${opacity})`,
+                `rgba(83, 102, 255, ${opacity})`,
+                `rgba(40, 167, 69, ${opacity})`,
+                `rgba(220, 53, 69, ${opacity})`
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+        
+        // Utility: Format currency
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('vi-VN', { 
+                style: 'currency', 
+                currency: 'VND' 
+            }).format(value);
+        }
+        
+        // Global functions for breadcrumb navigation
+        window.resetDrill = resetDrill;
+        window.drillTo = drillTo;
+        
+        // Add dimension to multi-dimensional analysis
+        function addDimensionToAnalysis(dimension, level) {
+            // Show modal to let user choose rows or columns
+            const modalHtml = `
+                <div class="modal fade" id="dimensionPlacementModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Add Dimension</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>Where would you like to place <strong>${dimension}: ${level}</strong>?</p>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="dimensionPlacement" id="placementRows" value="rows" checked>
+                                    <label class="form-check-label" for="placementRows">
+                                        Rows
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="dimensionPlacement" id="placementColumns" value="columns">
+                                    <label class="form-check-label" for="placementColumns">
+                                        Columns
+                                    </label>
+                                </div>
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                                        Cancel
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="confirmPlacementBtn">
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove any existing modal first
+            $('#dimensionPlacementModal').remove();
+            
+            // Add modal to document body
+            $('body').append(modalHtml);
+            
+            // Show the modal
+            const modal = new bootstrap.Modal(document.getElementById('dimensionPlacementModal'));
+            modal.show();
+            
+            // Handle add button click
+            $('#confirmPlacementBtn').click(function() {
+                const placement = $('input[name="dimensionPlacement"]:checked').val();
+                
+                const dimensionInfo = {
+                    dimension: dimension,
+                    level: level
+                };
+                
+                if (placement === 'rows') {
+                    // Check if dimension already exists in row dimensions
+                    const existingDimIndex = rowDimensions.findIndex(d => d.dimension === dimension);
+                    
+                    if (existingDimIndex >= 0) {
+                        // Update existing dimension with new level
+                        rowDimensions[existingDimIndex].level = level;
+                    } else {
+                        // Add new dimension
+                        rowDimensions.push(dimensionInfo);
+                    }
+                } else {
+                    // Check if dimension already exists in column dimensions
+                    const existingDimIndex = columnDimensions.findIndex(d => d.dimension === dimension);
+                    
+                    if (existingDimIndex >= 0) {
+                        // Update existing dimension with new level
+                        columnDimensions[existingDimIndex].level = level;
+                    } else {
+                        // Add new dimension
+                        columnDimensions.push(dimensionInfo);
+                    }
+                }
+                
+                // Update active dimensions display
+                updateActiveDimensionsDisplay();
+                
+                // Execute multi-dimensional query
+                executeMultiDimensionalQuery();
+                
+                // Hide the modal
+                modal.hide();
+            });
+        }
+        
+        // Update display of active dimensions
+        function updateActiveDimensionsDisplay() {
+            const rowsContainer = $('#rowDimensionsContainer');
+            const columnsContainer = $('#columnDimensionsContainer');
+            
+            rowsContainer.empty();
+            columnsContainer.empty();
+            
+            // Display row dimensions
+            rowDimensions.forEach((dim, index) => {
+                const badge = $(`
+                    <div class="badge bg-primary me-2 mb-2 p-2">
+                        ${dim.dimension}: ${dim.level}
+                        <button type="button" class="btn-close btn-close-white ms-2" 
+                                aria-label="Remove" data-index="${index}"></button>
+                    </div>
+                `);
+                
+                badge.find('.btn-close').click(function() {
+                    const idx = $(this).data('index');
+                    rowDimensions.splice(idx, 1);
+                    updateActiveDimensionsDisplay();
+                    executeMultiDimensionalQuery();
+                });
+                
+                rowsContainer.append(badge);
+            });
+            
+            // Display column dimensions
+            columnDimensions.forEach((dim, index) => {
+                const badge = $(`
+                    <div class="badge bg-info me-2 mb-2 p-2">
+                        ${dim.dimension}: ${dim.level}
+                        <button type="button" class="btn-close btn-close-white ms-2" 
+                                aria-label="Remove" data-index="${index}"></button>
+                    </div>
+                `);
+                
+                badge.find('.btn-close').click(function() {
+                    const idx = $(this).data('index');
+                    columnDimensions.splice(idx, 1);
+                    updateActiveDimensionsDisplay();
+                    executeMultiDimensionalQuery();
+                });
+                
+                columnsContainer.append(badge);
+            });
+            
+            // Update filter dimensions for each active dimension
+            const allDimensions = [...rowDimensions, ...columnDimensions];
+            allDimensions.forEach(dim => {
+                loadFilterValues(dim.dimension, dim.level);
+            });
+            
+            // Show/hide appropriate section headers
+            $('#rowDimensionsHeader').toggle(rowDimensions.length > 0);
+            $('#columnDimensionsHeader').toggle(columnDimensions.length > 0);
+        }
+        
+        // Execute query with multiple dimensions
+        function executeMultiDimensionalQuery() {
+            if (rowDimensions.length === 0 && columnDimensions.length === 0) {
+                // If no active dimensions, load initial data
+                loadInitialData();
+                return;
+            }
+            
+            $('#loadingChart').show();
+            $('#loadingTable').show();
+            $('#errorChart').hide();
+            $('#errorTable').hide();
+            
+            // Get selected filters
+            const filters = getSelectedFilters();
+            
+            fetch('${apiUrl}/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rows: rowDimensions,
+                    columns: columnDimensions,
+                    measures: selectedMeasures,
+                    filters: filters
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                
+                if (result.error) {
+                    $('#errorChart').text('Error: ' + result.error).show();
+                    $('#errorTable').text('Error: ' + result.error).show();
+                    return;
+                }
+                
+                // Update visualizations
+                currentData = result.data;
+                updateChart(result.data);
+                updateTable(result.data);
+                updateKPIs(result.data);
+            })
+            .catch(error => {
+                $('#loadingChart').hide();
+                $('#loadingTable').hide();
+                $('#errorChart').text('Error executing query: ' + error).show();
+                $('#errorTable').text('Error executing query: ' + error).show();
+            });
+        }
+        
+        // Get selected filters from UI
+        function getSelectedFilters() {
+            const filters = [];
+            
+            // Convert selectedFilters object to array format expected by API
+            Object.keys(selectedFilters).forEach(dimKey => {
+                const [dimension, level] = dimKey.split('|');
+                Object.keys(selectedFilters[dimKey]).forEach(value => {
+                    if (selectedFilters[dimKey][value]) {
+                        filters.push({
+                            dimension: dimension,
+                            level: level,
+                            value: value
+                        });
+                    }
+                });
+            });
+            
+            return filters;
+        }
+        
+        // Load filter values for a dimension
+        function loadFilterValues(dimension, level) {
+            fetch(`${apiUrl}/members?dimension=${dimension}&level=${level}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading filter values:', data.error);
+                        return;
+                    }
+                    
+                    updateFilterUI(dimension, level, data.members);
+                })
+                .catch(error => {
+                    console.error('Error loading filter values:', error);
+                });
+        }
+        
+        // Update filter UI with values
+        function updateFilterUI(dimension, level, members) {
+            const filterKey = `${dimension}|${level}`;
+            const filterContainer = $('#filtersContainer');
+            
+            // Create filter group if it doesn't exist
+            let filterGroup = $(`#filter_${dimension.replace(/\s+/g, '')}_${level.replace(/\s+/g, '')}`);
+            
+            if (filterGroup.length === 0) {
+                filterGroup = $(`
+                    <div class="filter-group mb-3" id="filter_${dimension.replace(/\s+/g, '')}_${level.replace(/\s+/g, '')}">
+                        <h6>${dimension}: ${level}</h6>
+                        <div class="filter-values">
+                        </div>
+                    </div>
+                `);
+                filterContainer.append(filterGroup);
+            }
+            
+            const valuesContainer = filterGroup.find('.filter-values');
+            valuesContainer.empty();
+            
+            // Initialize filters object if needed
+            if (!selectedFilters[filterKey]) {
+                selectedFilters[filterKey] = {};
+            }
+            
+            // Add filter values
+            members.forEach(member => {
+                // Skip null or empty values
+                if (member === null || member === '') return;
+                
+                // Initialize this filter value if needed
+                if (selectedFilters[filterKey][member] === undefined) {
+                    selectedFilters[filterKey][member] = false;
+                }
+                
+                const checkbox = $(`
+                    <div class="form-check">
+                        <input class="form-check-input filter-checkbox" type="checkbox" 
+                               id="filter_${dimension}_${level}_${member.replace(/\s+/g, '')}" 
+                               data-dimension="${dimension}" data-level="${level}" data-value="${member}"
+                               ${selectedFilters[filterKey][member] ? 'checked' : ''}>
+                        <label class="form-check-label" for="filter_${dimension}_${level}_${member.replace(/\s+/g, '')}">
+                            ${member}
+                        </label>
+                    </div>
+                `);
+                
+                checkbox.find('input').change(function() {
+                    const dim = $(this).data('dimension');
+                    const lvl = $(this).data('level');
+                    const val = $(this).data('value');
+                    const key = `${dim}|${lvl}`;
+                    
+                    selectedFilters[key][val] = $(this).is(':checked');
+                });
+                
+                valuesContainer.append(checkbox);
+            });
+        }
     </script>
 </body>
 
